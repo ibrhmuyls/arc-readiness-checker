@@ -1,0 +1,39 @@
+{
+  "name": "arc-readiness-checker",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Community-built readiness report for wallets on the Arc ecosystem (Arc Testnet). Not affiliated with Arc Network.",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "next": "15.1.8",
+    "react": "19.0.0",
+    "react-dom": "19.0.0",
+    "viem": "2.21.55",
+    "clsx": "2.1.1",
+    "tailwind-merge": "2.6.0",
+    "class-variance-authority": "0.7.1",
+    "@radix-ui/react-slot": "1.1.1",
+    "lucide-react": "0.474.0"
+  },
+  "devDependencies": {
+    "typescript": "5.7.3",
+    "@types/node": "22.10.7",
+    "@types/react": "19.0.7",
+    "@types/react-dom": "19.0.3",
+    "tailwindcss": "3.4.17",
+    "postcss": "8.5.1",
+    "autoprefixer": "10.4.20",
+    "tailwindcss-animate": "1.0.7",
+    "vitest": "2.1.8"
+  },
+  "engines": {
+    "node": ">=18.18.0"
+  }
+}
