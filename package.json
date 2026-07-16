@@ -15,7 +15,7 @@
     "next": "15.1.8",
     "react": "19.0.0",
     "react-dom": "19.0.0",
-    "viem": "2.21.55",
+    "viem": "2.55.2",
     "clsx": "2.1.1",
     "tailwind-merge": "2.6.0",
     "class-variance-authority": "0.7.1",
