@@ -8,10 +8,12 @@
 
 ## 1. What problem does ARC Readiness Checker solve?
 
-Arc is a new, EVM-compatible Layer-1 built around stablecoins (USDC is the
-native gas token), sub-second finality, opt-in privacy, and deep Circle
-integration (CCTP, Gateway, StableFX, App Kit). Because it is **new and
-currently testnet-only**, most wallets have little or no Arc history yet.
+Arc is a new, EVM-compatible Layer-1 built by Circle around **stablecoins as
+the native asset**: USDC is the native gas token, with EURC and USYC natively
+supported. It is currently available on **Arc Testnet only** (mainnet does not
+exist yet), and is defined by sub-second deterministic finality, EVM
+compatibility, opt-in privacy, and deep Circle integration (CCTP, Gateway,
+App Kit, StableFX).
 
 A newcomer asks a simple, reasonable question:
 
