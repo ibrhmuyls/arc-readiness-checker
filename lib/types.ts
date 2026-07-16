@@ -1,9 +1,8 @@
 // Core domain types for the ARC Readiness Checker.
-// Everything downstream (sources -> scoring -> UI) is typed against these.
+// Every source/score/UI boundary uses these types.
 
 export type Address = `0x${string}`;
 
-/** Result wrapper so a failing source never throws to the route. */
 export type SourceResult<T> =
   | { ok: true; data: T; latencyMs: number }
   | { ok: false; error: string; degraded: boolean };
@@ -43,26 +42,35 @@ export type RawFacts = {
 
 export type ContractRefs = {
   stablecoins: Address[];
-  bridge: Address[]; // CCTP + Gateway
-  defi: Address[]; // Multicall3, Permit2, StableFX, Memo
+  bridge: Address[];
+  builder: Address[]; // includes defi + developer primitives
 };
 
 export type CategoryScore = {
   id: string;
   label: string;
+  description: string;
   points: number;
   maxPoints: number;
   status: "scored" | "insufficient-data" | "disabled";
   reasoning: string;
+  source: string;
+  limitations: string;
 };
 
 export type WalletSummary = {
   firstSeenBlock: number | null;
   firstSeenTime: number | null;
   totalTransactions: number;
+  successfulTransactions: number;
+  failedTransactions: number;
   stablecoinTransfers: number;
+  usdcTransfers: number;
+  eurcTransfers: number;
+  usycTransfers: number;
   bridgeInteractions: number;
-  contractInteractions: number;
+  developerToolInteractions: number;
+  contractDeployments: number;
   nativeBalanceUsdc: string | null;
   isContract: boolean | null;
 };
@@ -70,6 +78,7 @@ export type WalletSummary = {
 export type DataSourceRef = {
   name: string;
   url: string;
+  usedFor: string;
 };
 
 export type ReadinessReport = {
@@ -78,13 +87,25 @@ export type ReadinessReport = {
   overallScore: number; // 0..100
   dataCompleteness: "full" | "partial" | "unavailable";
   categories: CategoryScore[];
+  profile: ArcProfile;
   summary: WalletSummary;
-  strengths: string[];
-  weaknesses: string[];
   recommendations: string[];
   methodology: string;
   dataSources: DataSourceRef[];
+  limitations: string[];
   generatedAt: number;
 };
+
+export type ArcProfile =
+  | "Stablecoin Native User"
+  | "Settlement Focused"
+  | "Cross-chain Ready"
+  | "Financial User"
+  | "Builder"
+  | "Infrastructure User"
+  | "Payment User"
+  | "Low Activity"
+  | "New Participant"
+  | "Institutional-like";
 
 export class AddressValidationError extends Error {}

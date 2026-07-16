@@ -1,17 +1,18 @@
 import type { Address, ContractRefs } from "../types";
 
 /**
- * Arc TESTNET contract addresses (snapshot from docs.arc.io/arc/references/
- * contract-addresses.md, verified 2026-07-16). Used as a static reference to
- * detect a wallet's category interactions from its on-chain history.
+ * Arc TESTNET contract addresses.
  *
- * NOTE: These are TESTNET addresses. If Arc ships mainnet, this table must be
- * updated before mainnet scoring is enabled. We do NOT fetch this at runtime —
- * it is build-time constant data so scoring is deterministic and offline-safe.
+ * Snapshot from docs.arc.io/arc/references/contract-addresses.md, verified
+ * 2026-07-16. These are TESTNET addresses only.
+ *
+ * We use them as a static reference to detect wallet category interactions
+ * from on-chain history. Scoring is deterministic and does not rely on runtime
+ * lookups of these addresses.
  */
 export const CONTRACT_REFS: ContractRefs = {
   stablecoins: [
-    "0x3600000000000000000000000000000000000000", // USDC (native gas, optional ERC-20)
+    "0x3600000000000000000000000000000000000000", // USDC (native gas token + ERC-20)
     "0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a", // EURC
     "0xe9185F0c5F296Ed1797AaE4238D26CCaBEadb86C", // USYC
   ],
@@ -23,11 +24,12 @@ export const CONTRACT_REFS: ContractRefs = {
     "0x0077777d7EBA4688BDeF3E311b846F25870A19B9", // GatewayWallet
     "0x0022222ABE238Cc2C7Bb1f21003F0a260052475B", // GatewayMinter
   ],
-  defi: [
+  builder: [
     "0xcA11bde05977b3631167028862bE2a173976CA11", // Multicall3
     "0x000000000022D473030F116dDEE9F6B43aC78BA3", // Permit2
     "0x867650F5eAe8df91445971f14d89fd84F0C9a9f8", // StableFX FxEscrow
     "0x5294E9927c3306DcBaDb03fe70b92e01cCede505", // Memo
+    "0x522fAf9A91c41c443c66765030741e4AaCe147D0", // Multicall3From
   ],
 };
 
