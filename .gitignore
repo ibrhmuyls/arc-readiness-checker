@@ -22,3 +22,6 @@ dist/
 
 # Local research scratch (not part of the repo)
 research/
+
+# Let Vercel regenerate lock on install (keeps next CVE patch fresh)
+package-lock.json

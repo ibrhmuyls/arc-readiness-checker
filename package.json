@@ -12,7 +12,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "next": "15.1.8",
+    "next": "15.1.9",
     "react": "19.0.0",
     "react-dom": "19.0.0",
     "viem": "2.21.55",
@@ -34,6 +34,6 @@
     "vitest": "2.1.8"
   },
   "engines": {
-    "node": ">=18.18.0"
+    "node": "~20.9.0"
   }
 }
