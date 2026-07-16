@@ -1,4 +1,4 @@
-import type { Address, CategoryScore, RawFacts, WalletSummary, ArcProfile } from "../types";
+import type { Address, CategoryScore, RawFacts, RawTx, ReadinessReport, WalletSummary, ArcProfile } from "../types";
 import { lowerSet } from "../sources/contractRefs";
 import { NETWORK_LABEL } from "../config";
 
@@ -87,7 +87,7 @@ export function score(facts: RawFacts) {
   const maxEarned = scored.reduce((s, c) => s + c.maxPoints, 0);
   const overall = maxEarned > 0 ? Math.round((earned / maxEarned) * 100) : 0;
 
-  const dataCompleteness =
+  const dataCompleteness: ReadinessReport["dataCompleteness"] =
     sources.explorerLegacy.ok && sources.rpc.ok
       ? "full"
       : sources.explorerLegacy.ok || sources.rpc.ok

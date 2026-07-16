@@ -5,12 +5,13 @@ import { score } from "@/lib/analysis/scoring";
 import { ReadinessScore } from "@/components/ReadinessScore";
 import { ScoreBreakdown } from "@/components/ScoreBreakdown";
 import { WalletSummaryCard } from "@/components/WalletSummary";
-import { StrengthsWeaknesses } from "@/components/StrengthsWeaknesses";
+import { ArcProfileCard } from "@/components/ArcProfile";
 import { Recommendations } from "@/components/Recommendations";
 import { Methodology } from "@/components/Methodology";
 import { DataSources } from "@/components/DataSources";
 import { ErrorState } from "@/components/ErrorState";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export const dynamic = "force-dynamic";
 
@@ -70,7 +71,7 @@ export default async function AnalyzePage({
       <main className="mx-auto max-w-3xl px-6 py-16">
         <ErrorState
           message="Analysis failed. The Arc Testnet sources may be temporarily unavailable."
-          onRetry={() => (window.location.href = "/analyze?address=" + encodeURIComponent(address))}
+          onRetry={() => (window.location.href = `/analyze?address=${encodeURIComponent(address)}`)}
         />
       </main>
     );
@@ -93,14 +94,26 @@ export default async function AnalyzePage({
       <div className="grid gap-4">
         <ReadinessScore score={report.overallScore} network={report.network} />
         <ScoreBreakdown categories={report.categories} />
+        <ArcProfileCard profile={report.profile} />
         <WalletSummaryCard summary={report.summary} />
-        <StrengthsWeaknesses
-          strengths={report.strengths}
-          weaknesses={report.weaknesses}
-        />
         <Recommendations recommendations={report.recommendations} />
         <Methodology text={report.methodology} />
         <DataSources sources={report.dataSources} />
+
+        {report.limitations?.length ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>Limitations</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+                {report.limitations.map((item, i) => (
+                  <li key={i}>{item}</li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
+        ) : null}
       </div>
 
       <div className="mt-10 text-center">

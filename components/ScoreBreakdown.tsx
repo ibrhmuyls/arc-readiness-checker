@@ -10,14 +10,29 @@ export function ScoreBreakdown({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Score Breakdown</CardTitle>
+        <CardTitle>Category Scores</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-5">
         {categories.map((c) => (
           <div key={c.id}>
-            <div className="flex items-center justify-between text-sm">
-              <span className="font-medium">{c.label}</span>
-              <span className="text-muted-foreground">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium">{c.label}</span>
+                  <span
+                    className={cn(
+                      "rounded px-1.5 py-0.5 text-[10px] uppercase",
+                      c.status === "disabled" && "bg-muted text-muted-foreground",
+                      c.status === "insufficient-data" && "bg-amber-500/20 text-amber-300",
+                      c.status === "scored" && "bg-emerald-500/20 text-emerald-300",
+                    )}
+                  >
+                    {c.status === "scored" ? "scored" : c.status === "insufficient-data" ? "insufficient data" : "coming soon"}
+                  </span>
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">{c.description}</p>
+              </div>
+              <span className="text-sm font-mono text-muted-foreground">
                 {c.status === "disabled"
                   ? "—"
                   : c.status === "insufficient-data"
@@ -25,8 +40,9 @@ export function ScoreBreakdown({
                     : `${c.points}/${c.maxPoints}`}
               </span>
             </div>
+
             {c.status === "scored" && (
-              <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-muted">
+              <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-muted">
                 <div
                   className="h-full rounded-full bg-primary"
                   style={{
@@ -35,19 +51,17 @@ export function ScoreBreakdown({
                 />
               </div>
             )}
-            <p className="mt-1 text-xs text-muted-foreground">{c.reasoning}</p>
+
+            <p className="mt-2 text-xs text-muted-foreground">{c.reasoning}</p>
+            <p className="mt-1 text-[11px] text-muted-foreground/70">
+              Source: {c.source}
+            </p>
+            <p className="mt-0.5 text-[11px] text-muted-foreground/70">
+              Limitation: {c.limitations}
+            </p>
           </div>
         ))}
       </CardContent>
     </Card>
-  );
-}
-
-export function categoryBadge(status: CategoryScore["status"]) {
-  return cn(
-    "ml-2 rounded px-1.5 py-0.5 text-[10px] uppercase",
-    status === "disabled" && "bg-muted text-muted-foreground",
-    status === "insufficient-data" && "bg-amber-500/20 text-amber-300",
-    status === "scored" && "bg-emerald-500/20 text-emerald-300",
   );
 }
