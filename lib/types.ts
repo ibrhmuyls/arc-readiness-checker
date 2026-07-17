@@ -117,6 +117,7 @@ export type CategoryScore = {
   source: string;
   limitations: string;
   weight?: number;
+  formula?: string;
 };
 
 export type ConfidenceLevel = "Low" | "Moderate" | "High";
@@ -131,7 +132,15 @@ export type FootprintProfile =
   | "Arc Contract Deployer"
   | "Multi-Product Circle User"
   | "Sustained Arc Ecosystem Participant"
-  | "Institutional-like Participant";
+  | "Institutional-like Participant"
+  | "Stablecoin Native"
+  | "Settlement Focused"
+  | "Emerging Circle User"
+  | "Cross-chain Stablecoin User"
+  | "Arc Developer"
+  | "Early Ecosystem Participant"
+  | "Low Observable Activity"
+  | "Financial Infrastructure User";
 
 export type ReadinessReport = CircleFootprintReport;
 
@@ -145,12 +154,10 @@ export type EvidenceCoverageBreakdownItem = {
 export type CircleFootprintReport = {
   address: Address;
   network: string;
-  verifiedCircleActivityScore: number;
-  evidenceCoverageScore: number;
-  evidenceCoverageBreakdown: {
-    components: EvidenceCoverageBreakdownItem[];
-    overall: number;
-  };
+  scoreLabel: string;
+  scoreValue: number;
+  confidenceLabel: string;
+  confidenceValue: number;
   confidenceLevel: ConfidenceLevel;
   primaryProfile: FootprintProfile;
   secondaryTags: string[];

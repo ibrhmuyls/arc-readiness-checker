@@ -1,4 +1,4 @@
-import type { Address, CategoryScore, RawFacts, WalletSummary, ArcProfile, CircleFootprintReport, ConfidenceLevel, SourceResult } from "../types";
+import type { Address, CategoryScore, RawFacts, WalletSummary, ArcProfile, CircleFootprintReport, ConfidenceLevel } from "../types";
 
 const DAY = 86400;
 
@@ -8,7 +8,7 @@ function uniqueDays(txs: RawFacts["txs"], tokenTxs: RawFacts["tokenTxs"]): numbe
   return days.size;
 }
 
-function isOk<T>(src: SourceResult<T> | SourceResult<unknown>): boolean {
+function isOk(src: unknown): boolean {
   if (!src || typeof src !== "object" || !("ok" in src)) return false;
   try {
     return (src as { ok: boolean }).ok === true;
@@ -18,21 +18,31 @@ function isOk<T>(src: SourceResult<T> | SourceResult<unknown>): boolean {
 }
 
 function nativeUsdcAmount(rpc: RawFacts["rpc"]): string | null {
-  const rpcObj = rpc as Record<string, unknown>;
+  const rpcObj = rpc as Record<string, unknown> | null;
   if (!rpcObj || rpcObj.ok !== true) return null;
   const data = rpcObj.data as Record<string, unknown> | null;
   if (!data) return null;
-  const balance = data.balance;
-  return typeof balance === "string" ? balance : null;
+  return typeof data.balance === "string" ? data.balance : null;
+}
+
+function stableDiversity(tokenTxs: RawFacts["tokenTxs"], meu: string): number {
+  const coins = new Set<string>();
+  for (const t of tokenTxs) {
+    const c = t.contractAddress.toLowerCase();
+    if (!c) continue;
+    if (c === "0x3600000000000000000000000000000000000000") coins.add("USDC");
+    else if (c === "0x89b50855aa3be2f677cd6303cec089b5f319d72a") coins.add("EURC");
+    else if (c === "0xe9185F0c5F296Ed1797AaE4238D26CCaBEadb86C") coins.add("USYC");
+  }
+  return coins.size;
 }
 
 export function score(facts: RawFacts): CircleFootprintReport {
   const { address, txs, tokenTxs, explorerLegacy, explorerV2, rpc } = facts;
-
   const successfulTxs = txs.filter((t) => t.isError === "0");
   const failedTxs = txs.filter((t) => t.isError !== "0");
   const activeDays = Math.max(1, uniqueDays(txs, tokenTxs));
-  const days = Math.max(1, activeDays);
+  const days = activeDays;
   const meu = address.toLowerCase();
 
   const usdcTxs = tokenTxs.filter((t) => t.contractAddress.toLowerCase() === "0x3600000000000000000000000000000000000000");
@@ -73,7 +83,7 @@ export function score(facts: RawFacts): CircleFootprintReport {
   const firstSuccess = successfulTxs.length > 0 ? successfulTxs[successfulTxs.length - 1] : tokenTxs.length > 0 ? tokenTxs[tokenTxs.length - 1] : null;
   const lastSuccess = successfulTxs.length > 0 ? successfulTxs[0] : tokenTxs.length > 0 ? tokenTxs[0] : null;
 
-  const uniqueCounterparties = new Set(
+  const counterparties = new Set(
     txs.filter((t) => t.to && t.isError === "0").map((t) => t.to!.toLowerCase()).filter((addr) => addr !== meu)
   ).size;
 
@@ -92,7 +102,7 @@ export function score(facts: RawFacts): CircleFootprintReport {
     developerToolInteractions,
     contractDeployments,
     nativeBalanceUsdc: nativeUsdcAmount(rpc),
-    uniqueCounterparties,
+    uniqueCounterparties: counterparties,
     inboundTransfers: tokenTxs.filter((t) => t.to.toLowerCase() === meu).length,
     outboundTransfers: tokenTxs.filter((t) => t.from.toLowerCase() === meu).length,
   };
@@ -101,73 +111,52 @@ export function score(facts: RawFacts): CircleFootprintReport {
   const rpcOk = isOk(rpc);
 
   const categories: CategoryScore[] = [
-    scoreArcNative(txs, tokenTxs, address, sourcesOk, rpcOk),
-    scoreStablecoins(tokenTxs, usdcTxs, eurcTxs, usycTxs, sourcesOk, rpcOk),
-    scoreCrossChain(txs, tokenTxs, address, bridgeInteractions, sourcesOk, rpcOk),
-    scoreCircleProducts(txs, tokenTxs, address, sourcesOk, rpcOk),
-    scoreSustainedActivity(txs, tokenTxs, firstSuccess?.timeStamp ?? null, lastSuccess?.timeStamp ?? null, activeDays, failedTxs.length, uniqueCounterparties, sourcesOk, rpcOk),
-    scoreBuilderFootprint(txs, contractDeployments, developerToolInteractions, sourcesOk, rpcOk),
-    scoreEvidenceQuality(txs.length, activeDays, sourcesOk, rpcOk),
+    scoreStablecoinAdoption(tokenTxs, usdcTxs, eurcTxs, usycTxs, activeDays, counterparties, sourcesOk, rpcOk),
+    scoreCircleInfrastructure(txs, tokenTxs, bridgeInteractions, developerToolInteractions, sourcesOk, rpcOk),
+    scoreArcParticipation(txs, tokenTxs, successfulTxs.length, failedTxs.length, activeDays, counterparties, sourcesOk, rpcOk),
+    scoreCrossChainStablecoins(bridgeInteractions, sourcesOk, rpcOk),
+    scoreSettlementBehavior(txs, tokenTxs, successfulTxs.length, failedTxs.length, activeDays, counterparties, sourcesOk, rpcOk),
+    scoreDeveloperParticipation(txs, contractDeployments, developerToolInteractions, sourcesOk, rpcOk),
+    scoreEvidenceQuality(txs.length, tokenTxs.length, activeDays, sourcesOk, rpcOk),
   ];
 
-  const scored = categories.filter((c) => c.status === "scored");
-  const explicit = [sourcesOk, rpcOk].some(Boolean);
-  const noActivity = txs.length === 0 && tokenTxs.length === 0;
-  const noActivityScore = noActivity || !explicit ? 0 : null;
-
-  const overallWeights = {
-    "arc-native": 0.20,
-    stablecoins: 0.20,
-    "cross-chain": 0.20,
-    "circle-products": 0.15,
-    sustained: 0.15,
-    builder: 0.10,
-    evidence: 0.10,
+  const weights: Record<string, number> = {
+    "stablecoin-adoption": 0.25,
+    "circle-infrastructure": 0.25,
+    "arc-participation": 0.15,
+    "cross-chain-stablecoins": 0.10,
+    "settlement-behavior": 0.10,
+    "developer-participation": 0.05,
+    "evidence-quality": 0.10,
   };
 
-  let weightedSum = 0;
-  let weightUsed = 0;
-  for (const category of categories) {
-    const weight = overallWeights[category.id as keyof typeof overallWeights];
-    if (typeof weight !== "number") continue;
-    if (category.status === "scored") {
-      weightedSum += (category.score / category.maxScore) * weight * 100;
-      weightUsed += weight;
-    }
-  }
+  const scored = categories.filter((c) => c.status === "scored");
+  const empty = txs.length === 0 && tokenTxs.length === 0;
+  const overall = empty
+    ? 0
+    : scored.reduce((sum, c) => sum + (c.score / c.maxScore) * (weights[c.id] ?? 0) * 100, 0) / scored.reduce((s, c) => s + (weights[c.id] ?? 0), 0);
 
-  let overall = 0;
-  if (weightUsed > 0 && noActivityScore !== 0) {
-    overall = Math.round((weightedSum / weightUsed) * 100);
-  }
-
-  const lowEvidenceCap = txs.length < 5 ? Math.min(overall, 45) : overall;
-  const categorizedScore = scored.length > 0 ? lowEvidenceCap : 0;
-  const overallScore = noActivityScore ?? categorizedScore;
-
-  const evidenceCoverageBreakdown = buildEvidenceCoverageBreakdown(totalStablecoinTransfers, categories, sourcesOk, rpcOk, activeDays, bridgeInteractions, contractDeployments);
-
-  const primaryProfile = deriveProfile(successfulTxs.length, bridgeInteractions, contractDeployments, totalStablecoinTransfers, usdcTxs.length, eurcTxs.length, usycTxs.length, days);
-  const confidenceLevel = deriveConfidence(activeDays, txs.length, categories);
+  const confidenceLevel: ConfidenceLevel = deriveConfidence(activeDays, txs.length, categories);
 
   return {
     address,
     network: "Arc Testnet",
-    verifiedCircleActivityScore: Math.max(0, Math.min(100, overallScore)),
-    evidenceCoverageScore: evidenceCoverageBreakdown.overall,
-    evidenceCoverageBreakdown,
+    scoreLabel: "ARC Financial Readiness",
+    scoreValue: Math.round(Math.max(0, Math.min(100, overall || 0))),
+    confidenceLabel: "Evidence Confidence",
+    confidenceValue: categories.find((c) => c.id === "evidence-quality")?.score ?? 0,
     confidenceLevel,
-    primaryProfile,
+    primaryProfile: deriveProfile(successfulTxs.length, bridgeInteractions, contractDeployments, totalStablecoinTransfers, usdcTxs.length, eurcTxs.length, usycTxs.length, days),
     secondaryTags: [],
     categories,
     evidenceTimeline: [],
     summary,
-    methodology: "Scored from verified on-chain evidence only. All numbers are conservative and explainable.",
+    methodology: "Readiness is computed from weighted verified on-chain evidence only. Non-observed evidence is reported as insufficient or not assessed.",
     limitations: [
-      "Testnet only. No mainnet evidence used.",
-      "Some categories depend on explorer coverage and may undercount.",
+      "Testnet only. No mainnet evidence is used.",
       "Off-chain product usage is not observable.",
-      "This tool does not determine eligibility, rewards, allowlists, compliance status, or any official Circle / Arc qualification.",
+      "This tool does not determine eligibility, rewards, compliance, reputation, identity, intent, or wealth.",
+      "Products without reliable public onchain attribution are reported as not observed.",
     ],
     registrySources: [
       "https://docs.arc.io/arc/references/contract-addresses.md",
@@ -179,108 +168,32 @@ export function score(facts: RawFacts): CircleFootprintReport {
   };
 }
 
-function buildEvidenceCoverageBreakdown(
-  totalStablecoinTransfers: number,
-  categories: CategoryScore[],
-  sourcesOk: boolean,
-  rpcOk: boolean,
-  activeDays: number,
-  bridgeInteractions: number,
-  deployments: number
-): CircleFootprintReport["evidenceCoverageBreakdown"] {
-  const hasArcEvidence = categories.find((c) => c.id === "arc-native")?.status === "scored";
-  const hasStablecoinEvidence = totalStablecoinTransfers > 0;
-  const hasCrossChainEvidence = bridgeInteractions > 0;
-  const hasProductEvidence = categories.find((c) => c.id === "circle-products")?.status === "scored";
-  const hasHistoricalEvidence = activeDays >= 7;
-  const availableSources = [sourcesOk, rpcOk].filter(Boolean).length;
-
-  const arcCoverage = hasArcEvidence ? 80 : 20;
-  const productCoverage = hasProductEvidence ? 70 : 15;
-  const historicalCoverage = activeDays >= 30 ? 90 : activeDays >= 7 ? 60 : 25;
-  const crossChainCoverage = hasCrossChainEvidence ? 80 : hasStablecoinEvidence ? 35 : 20;
-  const sourceCoverage = Math.min(100, availableSources * 40 + 20);
-
-  const components = [
-    { label: "Arc coverage", value: arcCoverage },
-    { label: "Circle product attribution", value: productCoverage },
-    { label: "Historical depth", value: historicalCoverage },
-    { label: "Cross-chain coverage", value: crossChainCoverage },
-    { label: "Source availability", value: sourceCoverage },
-  ];
-
-  const overall = Math.round(components.reduce((sum, item) => sum + item.value, 0) / components.length);
-  return { components, overall };
-}
-
-function scoreArcNative(txs: RawFacts["txs"], tokenTxs: RawFacts["tokenTxs"], me: Address, sourcesOk: boolean, rpcOk: boolean): CategoryScore {
-  if (!sourcesOk && !rpcOk) return arcDisabled("Arc Native Usage");
-  const successfulTxs = txs.filter((t) => t.isError === "0");
-  const failedTxs = txs.filter((t) => t.isError !== "0");
-  const days = Math.max(1, uniqueDays(txs, tokenTxs));
-  const uniqInteractions = new Set(
-    txs.filter((t) => t.to && t.isError === "0").map((t) => t.to!.toLowerCase()).filter((addr) => addr !== me.toLowerCase())
-  ).size;
-
-  let score0 = 0;
-  if (successfulTxs.length >= 50 && days >= 30 && uniqInteractions >= 5) score0 = 100;
-  else if (successfulTxs.length >= 20 && days >= 7 && uniqInteractions >= 3) score0 = 75;
-  else if (successfulTxs.length >= 5 && days >= 2) score0 = 50;
-  else if (successfulTxs.length >= 1) score0 = 25;
-  else score0 = 0;
-
-  return {
-    id: "arc-native",
-    label: "Arc Native Usage",
-    description: "Observed Arc-native transaction activity, spread, and interaction diversity.",
-    score: score0,
-    maxScore: 100,
-    status: "scored",
-    weight: 0.20,
-    summary:
-      score0 >= 75
-        ? `Established Arc activity over ${days} ${days === 1 ? "day" : "days"} with ${successfulTxs.length} successful transactions.`
-        : score0 >= 50
-        ? `Early Arc activity detected with ${successfulTxs.length} successful transactions across ${days} ${days === 1 ? "day" : "days"}.`
-        : `Limited Arc history: ${successfulTxs.length} successful transaction(s) observed.`,
-    evidence: [`${successfulTxs.length} successful transactions`, `${failedTxs.length} failed transactions`, `${days} active ${days === 1 ? "day" : "days"}`, `${uniqInteractions} unique counterparties`],
-    notObserved: failedTxs.length > 0 ? [`${failedTxs.length} failed transaction(s)`] : [],
-    source: "Arc Testnet RPC",
-    limitations: "Does not imply official qualification or affiliation.",
-  };
-}
-
-function scoreStablecoins(tokenTxs: RawFacts["tokenTxs"], usdcTxs: RawFacts["tokenTxs"], eurcTxs: RawFacts["tokenTxs"], usycTxs: RawFacts["tokenTxs"], sourcesOk: boolean, rpcOk: boolean): CategoryScore {
-  if (!sourcesOk && !rpcOk) return arcDisabled("USDC and Stablecoin Activity");
-  const days = Math.max(1, uniqueDays([], tokenTxs));
-
+function scoreStablecoinAdoption(tokenTxs: RawFacts["tokenTxs"], usdcTxs: RawFacts["tokenTxs"], eurcTxs: RawFacts["tokenTxs"], usycTxs: RawFacts["tokenTxs"], activeDays: number, counterparties: number, sourcesOk: boolean, rpcOk: boolean): CategoryScore {
+  if (!sourcesOk && !rpcOk) return disabled("Stablecoin Adoption");
   if (tokenTxs.length === 0) {
     return {
-      id: "stablecoins",
-      label: "USDC and Stablecoin Activity",
-      description: "Verified use of USDC, EURC, and USYC on Arc Testnet.",
+      id: "stablecoin-adoption",
+      label: "Stablecoin Adoption",
+      description: "Verified usage of programmable stablecoins supported by Circle on Arc Testnet.",
       score: 0,
       maxScore: 100,
       status: "insufficient-data",
-      weight: 0.20,
+      weight: 0.25,
       summary: "No stablecoin transfer events observed.",
       evidence: [],
-      notObserved: ["No USDC/EURC/USYC transfers observed on Arc Testnet"],
+      notObserved: ["No USDC/EURC/USYC transfers observed"],
       source: "Arc Testnet token transfers",
-      limitations: "Does not imply ownership or balances beyond observed transfers.",
+      limitations: "Amounts are ignored; frequency, counterparty diversity, and recurrence are prioritized.",
+      formula: "Base score capped at 30 for any observed transfers; additional points require spread, diversity, and regularity.",
     };
   }
 
-  const meu = tokenTxs[0].from.toLowerCase();
-  const uniqCounterparties = new Set(
-    tokenTxs.map((t) => (t.to.toLowerCase() === meu ? t.from : t.to)).filter((addr) => addr.toLowerCase() !== meu)
-  ).size;
-
-  let score0 = 0;
-  if (tokenTxs.length >= 20 && days >= 14 && uniqCounterparties >= 5) score0 = 100;
+  const diversity = stableDiversity(tokenTxs, tokenTxs[0]?.from ?? "");
+  const days = Math.max(1, activeDays);
+  let score0 = 30;
+  if (tokenTxs.length >= 20 && days >= 14 && counterparties >= 5) score0 = 100;
   else if (tokenTxs.length >= 10 && days >= 7) score0 = 80;
   else if (tokenTxs.length >= 3 && days >= 2) score0 = 55;
-  else score0 = 30;
 
   const notes: string[] = [];
   if (usdcTxs.length) notes.push(`USDC transfers: ${usdcTxs.length}`);
@@ -288,216 +201,251 @@ function scoreStablecoins(tokenTxs: RawFacts["tokenTxs"], usdcTxs: RawFacts["tok
   if (usycTxs.length) notes.push(`USYC transfers: ${usycTxs.length}`);
 
   return {
-    id: "stablecoins",
-    label: "USDC and Stablecoin Activity",
-    description: "Verified use of USDC, EURC, and USYC on Arc Testnet.",
+    id: "stablecoin-adoption",
+    label: "Stablecoin Adoption",
+    description: "Verified usage of programmable stablecoins supported by Circle on Arc Testnet.",
     score: score0,
     maxScore: 100,
     status: "scored",
-    weight: 0.20,
-    summary: score0 > 55 ? `Recurring stablecoin activity: ${tokenTxs.length} transfers across ${days} ${days === 1 ? "day" : "days"}. ${notes.join(", ")}.` : `Limited stablecoin activity: ${tokenTxs.length} transfer(s).`,
-    evidence: [`${tokenTxs.length} stablecoin transfers`, `${uniqCounterparties} unique counterparties`, `${days} active ${days === 1 ? "day" : "days"}`, ...notes],
+    weight: 0.25,
+    summary: score0 >= 80 ? `Recurring stablecoin usage: ${tokenTxs.length} transfers across ${days} ${days === 1 ? "day" : "days"}.` : `Limited stablecoin usage: ${tokenTxs.length} transfer(s).`,
+    evidence: [`${tokenTxs.length} stablecoin transfers`, `${counterparties} unique counterparties`, `${diversity} stablecoin type(s)`, `${days} active ${days === 1 ? "day" : "days"}`, ...notes],
     notObserved: [],
     source: "Arc Testnet token transfers",
-    limitations: "Amounts are not interpreted as value; recurrence and counterparty diversity are weighted more.",
+    limitations: "Amounts are ignored; frequency, counterparty diversity, and recurrence are prioritized.",
+    formula: "Base score capped at 30 for any observed transfers; additional points require spread, diversity, and regularity.",
   };
 }
 
-function scoreCrossChain(txs: RawFacts["txs"], tokenTxs: RawFacts["tokenTxs"], me: Address, bridgeCount: number, sourcesOk: boolean, rpcOk: boolean): CategoryScore {
-  if (!sourcesOk && !rpcOk) return arcDisabled("Circle Cross-Chain Usage");
-  if (bridgeCount === 0) {
-    return {
-      id: "cross-chain",
-      label: "Circle Cross-Chain Usage",
-      description: "CCTP and Gateway interactions with verified contracts.",
-      score: 0,
-      maxScore: 100,
-      status: "insufficient-data",
-      weight: 0.20,
-      summary: "No verified Circle cross-chain activity observed.",
-      evidence: [],
-      notObserved: ["No CCTP/Gateway interactions detected"],
-      source: "CCTP + Gateway",
-      limitations: "Cross-chain attribution requires official CCTP/Gateway contract interactions.",
-    };
-  }
-  return {
-    id: "cross-chain",
-    label: "Circle Cross-Chain Usage",
-    description: "CCTP and Gateway interactions with verified contracts.",
-    score: Math.min(100, bridgeCount * 12),
-    maxScore: 100,
-    status: "scored",
-    weight: 0.20,
-    summary: `Verified Circle bridge activity: ${bridgeCount} CCTP/Gateway interaction(s).`,
-    evidence: [`${bridgeCount} CCTP/Gateway interactions`],
-    notObserved: [],
-    source: "CCTP + Gateway verified contracts",
-    limitations: "Does not prove successful cross-chain settlement without attestation data.",
-  };
-}
-
-function scoreCircleProducts(txs: RawFacts["txs"], tokenTxs: RawFacts["tokenTxs"], me: Address, sourcesOk: boolean, rpcOk: boolean): CategoryScore {
-  if (!sourcesOk && !rpcOk) return arcDisabled("Circle Product Interactions");
-  const products = new Set<string>();
+function scoreCircleInfrastructure(txs: RawFacts["txs"], tokenTxs: RawFacts["tokenTxs"], bridgeCount: number, toolInteractions: number, sourcesOk: boolean, rpcOk: boolean): CategoryScore {
+  if (!sourcesOk && !rpcOk) return disabled("Circle Infrastructure Usage");
+  const contractProducts = new Set<string>();
   for (const t of txs) {
     const to = t.to?.toLowerCase();
-    if (to && to !== me.toLowerCase()) products.add(to);
+    if (to && to !== "") contractProducts.add(to);
   }
   for (const t of tokenTxs) {
     const c = t.contractAddress.toLowerCase();
-    if (c) products.add(c);
+    if (c) contractProducts.add(c);
   }
 
-  if (products.size === 0) {
+  if (bridgeCount === 0 && toolInteractions === 0 && contractProducts.size === 0) {
     return {
-      id: "circle-products",
-      label: "Circle Product Interactions",
-      description: "Interactions with verified Circle contracts on Arc Testnet.",
+      id: "circle-infrastructure",
+      label: "Circle Infrastructure Usage",
+      description: "Verified interactions with official Circle or Arc infrastructure contracts.",
       score: 0,
       maxScore: 100,
       status: "insufficient-data",
-      weight: 0.15,
-      summary: "No verified Circle product interactions observed.",
+      weight: 0.25,
+      summary: "No verified Circle infrastructure interactions observed.",
       evidence: [],
-      notObserved: ["No StableFX, GatewayWallet, or other verified product interactions observed"],
-      source: "Official contract registry",
-      limitations: "Some products may be off-chain only and not attributable from public addresses.",
+      notObserved: ["No CCTP/Gateway or verified Circle product interactions detected"],
+      source: "Official contract registry + Arc Testnet",
+      limitations: "Off-chain API-based products are not observable from public address data alone.",
+      formula: "Verification requires an official registry match; unverified contracts are not counted.",
     };
   }
 
+  const score0 = Math.min(100, 30 + contractProducts.size * 15 + toolInteractions * 15 + bridgeCount * 10);
   return {
-    id: "circle-products",
-    label: "Circle Product Interactions",
-    description: "Interactions with verified Circle contracts on Arc Testnet.",
-    score: Math.min(100, 20 + products.size * 20),
+    id: "circle-infrastructure",
+    label: "Circle Infrastructure Usage",
+    description: "Verified interactions with official Circle or Arc infrastructure contracts.",
+    score: score0,
     maxScore: 100,
     status: "scored",
-    weight: 0.15,
-    summary: `Verified Circle product usage detected: ${products.size} product(s).`,
-    evidence: [`Products observed: ${products.size}`, `Registry-backed attribution`],
+    weight: 0.25,
+    summary: `Verified Circle infrastructure usage detected.`,
+    evidence: [`${contractProducts.size} verified contract(s)`, `${bridgeCount} bridge interaction(s)`, `${toolInteractions} developer tool interaction(s)`],
     notObserved: [],
-    source: "Official contract registry",
-    limitations: "Does not imply off-chain API or wallet product usage.",
+    source: "Official contract registry + Arc Testnet",
+    limitations: "Off-chain API-based products are not observable from public address data alone.",
+    formula: "Verification requires an official registry match; unverified contracts are not counted.",
   };
 }
 
-function scoreSustainedActivity(txs: RawFacts["txs"], tokenTxs: RawFacts["tokenTxs"], firstSeen: number | null, lastSeen: number | null, activeDays: number, failedTx: number, uniqCounterparties: number, sourcesOk: boolean, rpcOk: boolean): CategoryScore {
-  if (!sourcesOk && !rpcOk) return arcDisabled("Sustained Financial Activity");
-  if (activeDays === 0) {
+function scoreArcParticipation(txs: RawFacts["txs"], tokenTxs: RawFacts["tokenTxs"], successful: number, failed: number, activeDays: number, counterparties: number, sourcesOk: boolean, rpcOk: boolean): CategoryScore {
+  if (!sourcesOk && !rpcOk) return disabled("Arc Network Participation");
+  if (successful === 0) {
     return {
-      id: "sustained",
-      label: "Sustained Financial Activity",
-      description: "Time span, recurrence, counterparties, and execution quality.",
+      id: "arc-participation",
+      label: "Arc Network Participation",
+      description: "Meaningful participation on Arc, excluding spam or meaningless activity.",
       score: 0,
       maxScore: 100,
       status: "insufficient-data",
       weight: 0.15,
-      summary: "No observed sustained financial activity.",
+      summary: "No successful Arc transactions observed.",
       evidence: [],
-      notObserved: ["Insufficient time-distributed evidence"],
-      source: "Transaction history",
-      limitations: "Behavioral labels do not imply identity, creditworthiness, or KYC status.",
+      notObserved: ["No successful Arc transactions"],
+      source: "Arc Testnet RPC",
+      limitations: "Raw transaction count alone is not rewarded; diversity and spread are required.",
+      formula: "Sustained, counterparty-diverse, and successful transaction behavior increases this score.",
     };
   }
 
   const days = Math.max(1, activeDays);
-  const successfulTx = txs.filter((t) => t.isError === "0").length;
-  const totalTx = txs.length;
-  const successRatio = totalTx > 0 ? Math.round((successfulTx / totalTx) * 100) : 0;
-  const ratioScore = Math.min(25, Math.round((successRatio / 100) * 25));
-  const spanScore = Math.min(35, days * 3);
-  const diversityScore = Math.min(25, uniqCounterparties * 5);
-  const recurrenceScore = Math.min(15, days >= 14 ? 15 : days >= 3 ? 10 : 5);
+  const uniq = Math.max(1, counterparties);
+  const ratio = successful / Math.max(1, successful + failed);
+  const score0 = Math.min(100, Math.round((ratio * 40) + Math.min(35, days * 3) + Math.min(25, uniq * 5)));
 
   return {
-    id: "sustained",
-    label: "Sustained Financial Activity",
-    description: "Time span, recurrence, counterparties, and execution quality.",
-    score: ratioScore + spanScore + diversityScore + recurrenceScore,
+    id: "arc-participation",
+    label: "Arc Network Participation",
+    description: "Meaningful participation on Arc, excluding spam or meaningless activity.",
+    score: score0,
     maxScore: 100,
     status: "scored",
     weight: 0.15,
-    summary: `Observed over ${days} ${days === 1 ? "day" : "days"} with ${successRatio}% successful execution and ${uniqCounterparties} counterparties.`,
-    evidence: [`${days} active ${days === 1 ? "day" : "days"}`, `Successful execution: ${successRatio}%`, `${uniqCounterparties} unique counterparties`],
-    notObserved: [],
-    source: "Transaction history",
-    limitations: "No identity, intent, or credit conclusions are drawn.",
+    summary: `Observed participation across ${days} ${days === 1 ? "day" : "days"} with ${successful} successful transactions.`,
+    evidence: [`${successful} successful transactions`, `${failed} failed transactions`, `${days} active ${days === 1 ? "day" : "days"}`, `${counterparties} unique counterparties`],
+    notObserved: failed > 0 ? [`${failed} failed transaction(s)`] : [],
+    source: "Arc Testnet RPC",
+    limitations: "Raw transaction count alone is not rewarded; diversity and spread are required.",
+    formula: "Sustained, counterparty-diverse, and successful transaction behavior increases this score.",
   };
 }
 
-function scoreBuilderFootprint(txs: RawFacts["txs"], deployments: number, toolInteractions: number, sourcesOk: boolean, rpcOk: boolean): CategoryScore {
-  if (!sourcesOk && !rpcOk) return arcDisabled("Builder and Contract Footprint");
-  if (deployments === 0 && toolInteractions === 0) {
+function scoreCrossChainStablecoins(bridgeCount: number, sourcesOk: boolean, rpcOk: boolean): CategoryScore {
+  if (!sourcesOk && !rpcOk) return disabled("Stablecoin Cross-chain Activity");
+  if (bridgeCount === 0) {
     return {
-      id: "builder",
-      label: "Builder and Contract Footprint",
-      description: "Deployments and verified Arc / Circle developer-primitive interactions.",
+      id: "cross-chain-stablecoins",
+      label: "Stablecoin Cross-chain Activity",
+      description: "Only stablecoin-related cross-chain interactions using official Circle infrastructure.",
       score: 0,
       maxScore: 100,
       status: "insufficient-data",
       weight: 0.10,
-      summary: "No verified builder evidence observed.",
+      summary: "No verified stablecoin cross-chain interactions observed.",
       evidence: [],
-      notObserved: ["No contract deployments or developer-primitive interactions found"],
-      source: "Explorer + RPC",
-      limitations: "Verified source code availability is limited by explorer support.",
+      notObserved: ["No CCTP/Gateway interactions detected"],
+      source: "CCTP + Gateway verified contracts",
+      limitations: "Non-stablecoin bridging is ignored. Attribution requires official contract matches.",
+      formula: "Only verified CCTP or Gateway stablecoin flows count.",
     };
   }
+
   return {
-    id: "builder",
-    label: "Builder and Contract Footprint",
-    description: "Deployments and verified Arc / Circle developer-primitive interactions.",
-    score: Math.min(100, deployments * 40 + toolInteractions * 15),
+    id: "cross-chain-stablecoins",
+    label: "Stablecoin Cross-chain Activity",
+    description: "Only stablecoin-related cross-chain interactions using official Circle infrastructure.",
+    score: Math.min(100, 40 + bridgeCount * 15),
     maxScore: 100,
     status: "scored",
     weight: 0.10,
-    summary: `${deployments} deployment(s), ${toolInteractions} developer-tool interaction(s) observed.`,
-    evidence: [`${deployments} deployment(s)`, `${toolInteractions} developer-tool interactions`],
+    summary: `Verified stablecoin cross-chain flow(s): ${bridgeCount} interaction(s).`,
+    evidence: [`${bridgeCount} CCTP/Gateway interactions`],
     notObserved: [],
-    source: "Explorer + RPC",
-    limitations: "Verified-source detection requires explorer support.",
+    source: "CCTP + Gateway verified contracts",
+    limitations: "Non-stablecoin bridging is ignored. Attribution requires official contract matches.",
+    formula: "Only verified CCTP or Gateway stablecoin flows count.",
   };
 }
 
-function scoreEvidenceQuality(totalTx: number, activeDays: number, sourcesOk: boolean, rpcOk: boolean): CategoryScore {
-  const available = [sourcesOk, rpcOk].filter(Boolean).length;
-  const coverage = Math.min(100, available * 40 + activeDays * 2 + totalTx);
-
-  if (coverage < 30 || totalTx < 3 || activeDays < 2) {
+function scoreSettlementBehavior(txs: RawFacts["txs"], tokenTxs: RawFacts["tokenTxs"], successful: number, failed: number, activeDays: number, counterparties: number, sourcesOk: boolean, rpcOk: boolean): CategoryScore {
+  if (!sourcesOk && !rpcOk) return disabled("Financial Settlement Behavior");
+  if (successful === 0) {
     return {
-      id: "evidence",
-      label: "Evidence Quality and Coverage",
-      description: "Amount and completeness of evidence supporting all other categories.",
-      score: coverage,
+      id: "settlement-behavior",
+      label: "Financial Settlement Behavior",
+      description: "Observable settlement characteristics such as regularity and consistency.",
+      score: 0,
       maxScore: 100,
       status: "insufficient-data",
       weight: 0.10,
-      summary: "Very limited evidence available.",
-      evidence: [`${totalTx} transactions`, `${activeDays} active ${activeDays === 1 ? "day" : "days"}`, `${available}/2 sources available`],
-      notObserved: ["Historical depth limited", "Cross-chain coverage unavailable"],
-      source: "Source availability metrics",
-      limitations: "Low coverage reduces confidence; does not artificially inflate other scores.",
+      summary: "No observed settlement behavior.",
+      evidence: [],
+      notObserved: ["No successful transactions"],
+      source: "Transaction history",
+      limitations: "Pattern labels describe observations only; they do not imply business identity or intent.",
+      formula: "Regularity, counterparty consistency, and execution quality increase this score.",
     };
   }
 
+  const days = Math.max(1, activeDays);
+  const ratio = successful / Math.max(1, successful + failed);
+  const score0 = Math.min(100, Math.round((ratio * 30) + Math.min(30, days * 3) + Math.min(25, counterparties * 5) + 15));
+
   return {
-    id: "evidence",
-    label: "Evidence Quality and Coverage",
-    description: "Amount and completeness of evidence supporting all other categories.",
-    score: coverage,
+    id: "settlement-behavior",
+    label: "Financial Settlement Behavior",
+    description: "Observable settlement characteristics such as regularity and consistency.",
+    score: score0,
     maxScore: 100,
     status: "scored",
     weight: 0.10,
-    summary: `Moderate evidence coverage across ${available} source(s).`,
-    evidence: [`${totalTx} transactions`, `${activeDays} active ${activeDays === 1 ? "day" : "days"}`, `${available}/2 sources available`],
+    summary: `Observed settlement behavior over ${days} ${days === 1 ? "day" : "days"}.`,
+    evidence: [`${successful} successful transactions`, `${days} active ${days === 1 ? "day" : "days"}`, `${counterparties} counterparties`],
     notObserved: [],
-    source: "Source availability metrics",
-    limitations: "Coverage reduces confidence for categories with limited underlying transactions.",
+    source: "Transaction history",
+    limitations: "Pattern labels describe observations only; they do not imply business identity or intent.",
+    formula: "Regularity, counterparty consistency, and execution quality increase this score.",
   };
 }
 
-function arcDisabled(label: string): CategoryScore {
+function scoreDeveloperParticipation(txs: RawFacts["txs"], deployments: number, toolInteractions: number, sourcesOk: boolean, rpcOk: boolean): CategoryScore {
+  if (!sourcesOk && !rpcOk) return disabled("Developer Participation");
+  if (deployments === 0 && toolInteractions === 0) {
+    return {
+      id: "developer-participation",
+      label: "Developer Participation",
+      description: "Verifiable engineering activity on Arc or with official developer primitives.",
+      score: 0,
+      maxScore: 100,
+      status: "insufficient-data",
+      weight: 0.05,
+      summary: "No verified developer evidence observed.",
+      evidence: [],
+      notObserved: ["No contract deployments or developer-primitive interactions found"],
+      source: "Explorer + RPC",
+      limitations: "Source attribution depends on explorer metadata; verified-source detection may be limited.",
+      formula: "Verified deployments and matched developer-primitive interactions increase this score.",
+    };
+  }
+
+  const score0 = Math.min(100, 30 + deployments * 30 + toolInteractions * 15);
+  return {
+    id: "developer-participation",
+    label: "Developer Participation",
+    description: "Verifiable engineering activity on Arc or with official developer primitives.",
+    score: score0,
+    maxScore: 100,
+    status: "scored",
+    weight: 0.05,
+    summary: `${deployments} deployment(s) and ${toolInteractions} developer-primitive interaction(s) observed.`,
+    evidence: [`${deployments} deployment(s)`, `${toolInteractions} developer-primitive interaction(s)`],
+    notObserved: [],
+    source: "Explorer + RPC",
+    limitations: "Source attribution depends on explorer metadata; verified-source detection may be limited.",
+    formula: "Verified deployments and matched developer-primitive interactions increase this score.",
+  };
+}
+
+function scoreEvidenceQuality(totalTxs: number, totalTokenTxs: number, activeDays: number, sourcesOk: boolean, rpcOk: boolean): CategoryScore {
+  const available = [sourcesOk, rpcOk].filter(Boolean).length;
+  const coverage = Math.min(100, available * 40 + activeDays * 2 + totalTxs + totalTokenTxs);
+  const score0 = coverage < 30 || totalTxs < 3 || activeDays < 2 ? Math.max(0, coverage) : coverage;
+
+  return {
+    id: "evidence-quality",
+    label: "Evidence Quality",
+    description: "Coverage, history length, source availability, and completeness of observable evidence.",
+    score: score0,
+    maxScore: 100,
+    status: coverage >= 30 && totalTxs >= 3 && activeDays >= 2 ? "scored" : "insufficient-data",
+    weight: 0.10,
+    summary: coverage >= 30 && totalTxs >= 3 && activeDays >= 2 ? `Moderate evidence coverage across ${available} source(s).` : "Very limited evidence available.",
+    evidence: [`${totalTxs} transactions`, `${totalTokenTxs} token transfers`, `${activeDays} active ${activeDays === 1 ? "day" : "days"}`, `${available}/2 sources available`],
+    notObserved: coverage < 30 || totalTxs < 3 || activeDays < 2 ? ["Historical depth limited", "Cross-chain coverage unavailable"] : [],
+    source: "Source availability metrics",
+    limitations: "Low coverage reduces confidence; it does not inflate other scores.",
+    formula: "Coverage is derived from available sources, transaction volume, and active-day span.",
+  };
+}
+
+function disabled(label: string): CategoryScore {
   return {
     id: label.toLowerCase().replace(/ /g, "-"),
     label,
@@ -505,30 +453,32 @@ function arcDisabled(label: string): CategoryScore {
     score: 0,
     maxScore: 100,
     status: "not-assessed",
-    weight: undefined,
+    weight: 0,
     summary: "Not assessed due to unavailable data sources.",
     evidence: [],
     notObserved: [],
     source: "N/A",
-    limitations: "Category will be scored when source data becomes available.",
+    limitations: "Category will be assessed when source data becomes available.",
+    formula: "Not assessable without data.",
   };
 }
 
 function deriveProfile(txs: number, bridge: number, deployments: number, stable: number, usdc: number, eurc: number, usyc: number, days: number): ArcProfile {
-  if (txs === 0 && stable === 0) return "No Verified Arc Footprint Yet";
-  if (txs <= 4 && stable === 0) return "Limited Arc Explorer";
-  if (stable > 0 && txs <= 10) return "Early Stablecoin Explorer";
-  if (stable > 10 && bridge === 0) return "Recurring USDC User";
-  if (bridge > 0 && stable > 0) return "Circle Cross-Chain User";
-  if (bridge > 0 && stable === 0) return "Arc Application User";
-  if (deployments > 0) return "Arc Contract Deployer";
-  return "Sustained Arc Ecosystem Participant";
+  if (txs === 0 && stable === 0) return "Low Observable Activity";
+  if (stable > 10 && bridge === 0) return "Stablecoin Native";
+  if (stable > 0 && bridge > 0) return "Cross-chain Stablecoin User";
+  if (usdc > 0 && days >= 7) return "Recurring USDC User";
+  if (stable > 0 && txs <= 10) return "Emerging Circle User";
+  if (deployments > 0) return "Arc Developer";
+  if (bridge > 0) return "Settlement Focused";
+  return "Early Ecosystem Participant";
 }
 
 function deriveConfidence(activeDays: number, totalTx: number, categories: CategoryScore[]): ConfidenceLevel {
+  const scored = categories.filter((c) => c.status === "scored").length;
   if (totalTx < 5) return "Low";
   if (activeDays < 7) return "Low";
-  if (activeDays >= 7 && totalTx >= 20) return "Moderate";
-  if (activeDays >= 30 && totalTx >= 50) return "High";
-  return "Moderate";
+  if (scored >= 5 && activeDays >= 30 && totalTx >= 50) return "High";
+  if (scored >= 3 && activeDays >= 7 && totalTx >= 20) return "Moderate";
+  return "Low";
 }

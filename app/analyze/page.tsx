@@ -27,11 +27,11 @@ export default async function AnalyzePage({ searchParams }: { searchParams: Prom
       <div className="mx-auto max-w-2xl px-4 py-24">
         <Card>
           <CardHeader>
-            <CardTitle>Circle Ecosystem Footprint</CardTitle>
+            <CardTitle>ARC Financial Readiness</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground">
-              Independent read-only analysis. Not eligibility, rewards, or an official Circle / Arc qualification.
+              Independent read-only analysis. Not eligibility, rewards, compliance, or an official Circle / Arc qualification.
             </p>
             <form method="get" className="mt-4 flex gap-2">
               <input
@@ -70,29 +70,29 @@ export default async function AnalyzePage({ searchParams }: { searchParams: Prom
     <div className="mx-auto max-w-3xl px-4 py-10">
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-xl font-semibold">Circle Ecosystem Footprint</h1>
+          <h1 className="text-xl font-semibold">ARC Financial Readiness</h1>
           <p className="mt-1 break-all font-mono text-sm text-muted-foreground">{report.address}</p>
           <p className="mt-1 text-xs text-muted-foreground">Last updated: {new Date(report.lastUpdated).toLocaleString()}</p>
         </div>
         <div className="text-left sm:text-right">
-          <div className="text-3xl font-bold">{report.verifiedCircleActivityScore}/100</div>
-          <div className="text-xs text-muted-foreground">Verified Circle Activity Score</div>
+          <div className="text-3xl font-bold">{report.scoreValue}/100</div>
+          <div className="text-xs text-muted-foreground">{report.scoreLabel}</div>
         </div>
       </div>
 
       <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Card>
           <CardHeader>
-            <CardTitle className="text-sm font-medium">Evidence Coverage</CardTitle>
+            <CardTitle className="text-sm font-medium">{report.confidenceLabel}</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{report.evidenceCoverageScore}/100</div>
-            <p className="text-xs text-muted-foreground">Lower coverage reduces confidence; it does not inflate scores.</p>
+            <div className="text-2xl font-bold">{report.confidenceValue}/100</div>
+            <p className="text-xs text-muted-foreground">{report.confidenceLevel} confidence based on available evidence.</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader>
-            <CardTitle className="text-sm font-medium">Confidence</CardTitle>
+            <CardTitle className="text-sm font-medium">Confidence Level</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{report.confidenceLevel}</div>
@@ -111,10 +111,6 @@ export default async function AnalyzePage({ searchParams }: { searchParams: Prom
       </div>
 
       <div className="mb-6">
-        <EvidenceCoverageCard breakdown={report.evidenceCoverageBreakdown} />
-      </div>
-
-      <div className="mb-6">
         <ArcProfileCard profile={report.primaryProfile} />
       </div>
 
@@ -129,9 +125,10 @@ export default async function AnalyzePage({ searchParams }: { searchParams: Prom
       <div className="mb-6 rounded-md border bg-muted/40 p-4 text-xs text-muted-foreground">
         <p className="mb-1 font-medium text-foreground">Disclaimer</p>
         <p>
-          This is an independent analysis tool. It does not determine airdrop eligibility, rewards, allowlists,
-          account status, compliance status, or any official Circle / Arc qualification. Results are based only
-          on publicly observable onchain evidence.
+          ARC Financial Readiness evaluates only publicly observable, verifiable on-chain interactions related to Circle's programmable money
+          infrastructure and the Arc ecosystem. It does not infer identity, intent, eligibility, compliance status, reputation, financial
+          standing, or future behavior. This is an independent analysis tool. It does not determine airdrop eligibility, rewards, allowlists,
+          account status, compliance status, or any official Circle / Arc qualification. Results are based only on publicly observable onchain evidence.
         </p>
       </div>
 
