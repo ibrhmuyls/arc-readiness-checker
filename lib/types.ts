@@ -1,18 +1,15 @@
-// Core domain types for the ARC Readiness Checker.
-// Every source/score/UI boundary uses these types.
-
 export type Address = `0x${string}`;
 
 export type SourceResult<T> =
-  | { ok: true; data: T; latencyMs: number }
-  | { ok: false; error: string; degraded: boolean };
+  | { ok: true; data: T; latencyMs: number; error?: string; degraded?: boolean }
+  | { ok: false; degraded: boolean; error: string; latencyMs?: number };
 
 export type RawTx = {
   hash: string;
   blockNumber: number;
-  timeStamp: number; // unix seconds
+  timeStamp: number;
   from: string;
-  to: string | null;
+  to: string | "";
   input: string;
   gasUsed: number;
   isError: "0" | "1";
@@ -31,36 +28,66 @@ export type RawTokenTx = {
 
 export type RawFacts = {
   address: Address;
-  fetchedAt: number;
+  txs: RawTx[];
+  tokenTxs: RawTokenTx[];
+  explorerLegacy: SourceResult<{ txs: RawTx[]; tokenTxs: RawTokenTx[] }>;
+  explorerV2: SourceResult<unknown>;
+  rpc: SourceResult<unknown>;
   sources: {
-    rpc: SourceResult<{ balanceWei: string; txCount: number; chainId: string }>;
-    explorerLegacy: SourceResult<{ txs: RawTx[]; tokenTxs: RawTokenTx[] }>;
-    explorerV2: SourceResult<{ txCount: number; tokenTransferCount: number }>;
+    explorerLegacy: SourceResult<unknown>;
+    explorerV2: SourceResult<unknown>;
+    rpc: SourceResult<unknown>;
   };
-  contractRefs: ContractRefs;
+  fetchedAt: number;
 };
 
-export type ContractRefs = {
-  stablecoins: Address[];
-  bridge: Address[];
-  builder: Address[]; // includes defi + developer primitives
-};
+export type ProductModule =
+  | "arc"
+  | "usdc"
+  | "eurc"
+  | "usyc"
+  | "cctp"
+  | "gateway"
+  | "stablefx"
+  | "developer-tools"
+  | "circle-wallets"
+  | "circle-contracts"
+  | "circle-payments-network"
+  | "unknown";
 
-export type CategoryScore = {
-  id: string;
-  label: string;
-  description: string;
-  points: number;
-  maxPoints: number;
-  status: "scored" | "insufficient-data" | "disabled";
-  reasoning: string;
-  source: string;
-  limitations: string;
+export type EventClass =
+  | "transfer"
+  | "approval"
+  | "memo"
+  | "multicall"
+  | "bridge-burn"
+  | "bridge-mint"
+  | "bridge-message"
+  | "gateway-deposit"
+  | "gateway-withdraw"
+  | "stablefx-escrow"
+  | "deployment"
+  | "permit2-approval"
+  | "unknown";
+
+export type TransactionEvidence = {
+  hash: string;
+  timestamp: number;
+  eventType: EventClass;
+  productModules: ProductModule[];
+  asset: string | null;
+  direction: "inbound" | "outbound" | "self" | "unknown";
+  counterparty: string | null;
+  confidence: "high" | "medium" | "low";
+  sourceUrl: string;
+  explorerUrl: string;
+  evidenceText: string;
 };
 
 export type WalletSummary = {
-  firstSeenBlock: number | null;
   firstSeenTime: number | null;
+  lastSeenTime: number | null;
+  activeDays: number;
   totalTransactions: number;
   successfulTransactions: number;
   failedTransactions: number;
@@ -72,40 +99,56 @@ export type WalletSummary = {
   developerToolInteractions: number;
   contractDeployments: number;
   nativeBalanceUsdc: string | null;
-  isContract: boolean | null;
+  uniqueCounterparties: number;
+  inboundTransfers: number;
+  outboundTransfers: number;
 };
 
-export type DataSourceRef = {
-  name: string;
-  url: string;
-  usedFor: string;
+export type CategoryScore = {
+  id: string;
+  label: string;
+  description: string;
+  score: number;
+  maxScore: 100;
+  status: "scored" | "insufficient-data" | "not-assessed" | "disabled";
+  summary: string;
+  evidence: string[];
+  notObserved: string[];
+  source: string;
+  limitations: string;
 };
 
-export type ReadinessReport = {
+export type ConfidenceLevel = "Low" | "Moderate" | "High";
+
+export type FootprintProfile =
+  | "No Verified Arc Footprint Yet"
+  | "Limited Arc Explorer"
+  | "Early Stablecoin Explorer"
+  | "Recurring USDC User"
+  | "Arc Application User"
+  | "Circle Cross-Chain User"
+  | "Arc Contract Deployer"
+  | "Multi-Product Circle User"
+  | "Sustained Arc Ecosystem Participant"
+  | "Institutional-like Participant";
+
+export type ReadinessReport = CircleFootprintReport;
+
+export type ArcProfile = FootprintProfile;
+
+export type CircleFootprintReport = {
   address: Address;
-  network: "Arc Testnet";
-  overallScore: number; // 0..100
-  dataCompleteness: "full" | "partial" | "unavailable";
+  network: string;
+  verifiedCircleActivityScore: number;
+  evidenceCoverageScore: number;
+  confidenceLevel: ConfidenceLevel;
+  primaryProfile: FootprintProfile;
+  secondaryTags: string[];
   categories: CategoryScore[];
-  profile: ArcProfile;
+  evidenceTimeline: TransactionEvidence[];
   summary: WalletSummary;
-  recommendations: string[];
   methodology: string;
-  dataSources: DataSourceRef[];
+  registrySources: string[];
   limitations: string[];
-  generatedAt: number;
+  lastUpdated: number;
 };
-
-export type ArcProfile =
-  | "Stablecoin Native User"
-  | "Settlement Focused"
-  | "Cross-chain Ready"
-  | "Financial User"
-  | "Builder"
-  | "Infrastructure User"
-  | "Payment User"
-  | "Low Activity"
-  | "New Participant"
-  | "Institutional-like";
-
-export class AddressValidationError extends Error {}

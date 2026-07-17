@@ -1,192 +1,71 @@
 import { describe, it, expect } from "vitest";
 import { score } from "./scoring";
-import type { RawFacts } from "../types";
-import { CONTRACT_REFS } from "../sources/contractRefs";
+import type { RawFacts, RawTx, RawTokenTx } from "../types";
 
-const ADDR = "0x3600000000000000000000000000000000000000" as const;
+const ADDR = "0x36F750d29139075920CD24D05371ac2e079711F0" as const;
 
-function baseFacts(overrides: Partial<RawFacts> = {}): RawFacts {
+function baseFacts(now: number): RawFacts {
   return {
     address: ADDR,
-    fetchedAt: Date.now(),
+    txs: [] as RawTx[],
+    tokenTxs: [] as RawTokenTx[],
+    explorerLegacy: { ok: true, data: { txs: [] as RawTx[], tokenTxs: [] as RawTokenTx[] }, latencyMs: 10 },
+    explorerV2: { ok: true, data: { txs: [] as RawTx[], tokenTxs: [] as RawTokenTx[] }, latencyMs: 10 },
+    rpc: { ok: true, data: { balance: "0", blockNumber: 1 }, latencyMs: 10 },
     sources: {
-      rpc: { ok: true, latencyMs: 1, data: { balanceWei: "1000000000000000000", txCount: 5, chainId: "0x4cef52" } },
-      explorerLegacy: { ok: true, latencyMs: 1, data: { txs: [], tokenTxs: [] } },
-      explorerV2: { ok: true, latencyMs: 1, data: { txCount: 0, tokenTransferCount: 0 } },
+      explorerLegacy: { ok: true, data: null, latencyMs: 1, error: "", degraded: false },
+      explorerV2: { ok: true, data: null, latencyMs: 1, error: "", degraded: false },
+      rpc: { ok: true, data: null, latencyMs: 1, error: "", degraded: false },
     },
-    contractRefs: CONTRACT_REFS,
-    ...overrides,
+    fetchedAt: now,
   };
 }
 
-function tx(block: number, ts: number, to: string | null, input = "0x") {
-  return {
-    hash: "0x" + "a".repeat(64),
-    blockNumber: block,
-    timeStamp: ts,
-    from: "0x" + "1".repeat(40),
-    to,
-    input,
-    gasUsed: 21000,
-    isError: "0" as const,
-  };
-}
-
-const NOW = Math.floor(Date.now() / 1000);
-
-describe("scoring engine", () => {
-  it("returns New Participant profile for an empty wallet", () => {
-    const r = score(baseFacts());
-    expect(r.overallScore).toBe(0);
-    expect(r.dataCompleteness).toBe("full");
-    expect(r.profile).toBe("New Participant");
+describe("scoring", () => {
+  it("returns CircleFootprintReport with no activity", () => {
+    const report = score(baseFacts(Math.floor(Date.now() / 1000)));
+    expect(report.address).toBe(ADDR);
+    expect(report.network).toBe("Arc Testnet");
+    expect(report.verifiedCircleActivityScore).toBe(0);
+    expect(report.evidenceCoverageScore).toBeGreaterThanOrEqual(0);
+    expect(report.primaryProfile).toBe("No Verified Arc Footprint Yet");
+    expect(report.categories).toHaveLength(7);
+    expect(report.limitations.length).toBeGreaterThan(0);
   });
 
-  it("never scores the disabled multi-chain category", () => {
-    const r = score(baseFacts());
-    const mc = r.categories.find((c) => c.id === "multichain");
-    expect(mc?.status).toBe("disabled");
-    expect(mc?.maxPoints).toBe(0);
-  });
-
-  it("rewards stablecoin usage from token transfers and diversity", () => {
-    const usdc = CONTRACT_REFS.stablecoins[0];
-    const eurc = CONTRACT_REFS.stablecoins[1];
-    const facts = baseFacts({
+  it("returns Low confidence and insufficient-data evidence when evidence is thin", () => {
+    const now = Math.floor(Date.now() / 1000);
+    const facts: RawFacts = {
+      address: ADDR,
+      txs: [
+        { hash: "0x1", blockNumber: 1, timeStamp: now, from: ADDR, to: "0x2", input: "0x", gasUsed: 100, isError: "0" },
+      ],
+      tokenTxs: [] as RawTokenTx[],
+      explorerLegacy: { ok: false, degraded: true, error: "down" },
+      explorerV2: { ok: false, degraded: true, error: "down" },
+      rpc: { ok: false, degraded: true, error: "down" },
       sources: {
-        ...baseFacts().sources,
-        explorerLegacy: {
-          ok: true,
-          latencyMs: 1,
-          data: {
-            txs: [],
-            tokenTxs: [
-              {
-                hash: "0x" + "b".repeat(64),
-                blockNumber: 1,
-                timeStamp: NOW,
-                from: "0x" + "1".repeat(40),
-                to: "0x" + "2".repeat(40),
-                contractAddress: usdc,
-                tokenSymbol: "USDC",
-                value: "1000000",
-              },
-              {
-                hash: "0x" + "c".repeat(64),
-                blockNumber: 2,
-                timeStamp: NOW,
-                from: "0x" + "1".repeat(40),
-                to: "0x" + "2".repeat(40),
-                contractAddress: eurc,
-                tokenSymbol: "EURC",
-                value: "1000000",
-              },
-            ],
-          },
-        },
+        explorerLegacy: { ok: false, error: "down", degraded: true },
+        explorerV2: { ok: false, error: "down", degraded: true },
+        rpc: { ok: false, error: "down", degraded: true },
       },
-    });
-    const r = score(facts);
-    const stable = r.categories.find((c) => c.id === "stablecoin");
-    expect(stable?.points).toBeGreaterThan(0);
+      fetchedAt: now,
+    };
+    const report = score(facts);
+    expect(report.confidenceLevel).toBe("Low");
+    const evidence = report.categories.find((c) => c.id === "evidence");
+    expect(evidence?.status).toBe("insufficient-data");
   });
 
-  it("computes failing categories as insufficient-data when explorer is down", () => {
-    const facts = baseFacts({
-      sources: {
-        rpc: { ok: false, degraded: true, error: "x" },
-        explorerLegacy: { ok: false, degraded: true, error: "x" },
-        explorerV2: { ok: false, degraded: true, error: "x" },
-      },
-    });
-    const r = score(facts);
-    expect(r.dataCompleteness).toBe("unavailable");
-    expect(r.overallScore).toBe(0);
-  });
-
-  it("derives Settlement and Builder categories correctly", () => {
-    const now = NOW;
-    const facts = baseFacts({
-      sources: {
-        ...baseFacts().sources,
-        explorerLegacy: {
-          ok: true,
-          latencyMs: 1,
-          data: {
-            txs: [
-              tx(1, now, "0x" + "3".repeat(40), "0x1234"),
-              { ...tx(2, now, "0x" + "3".repeat(40), "0x5678"), isError: "1" as const },
-            ],
-            tokenTxs: [],
-          },
-        },
-      },
-    });
-    const r = score(facts);
-    const settle = r.categories.find((c) => c.id === "settlement");
-    const build = r.categories.find((c) => c.id === "builder");
-    expect(settle?.status).toBe("scored");
-    expect(build?.status).toBe("insufficient-data");
-  });
-
-  it("returns Builders for dev-heavy behavior", () => {
-    const now = NOW;
-    const facts = baseFacts({
-      sources: {
-        ...baseFacts().sources,
-        explorerLegacy: {
-          ok: true,
-          latencyMs: 1,
-          data: {
-            txs: [
-              tx(1, now, CONTRACT_REFS.builder[0], "0xabcd"),
-              tx(2, now, null, "0x60fe7b..."),
-            ],
-            tokenTxs: [],
-          },
-        },
-      },
-    });
-    const r = score(facts);
-    expect(r.profile).toBe("Builder");
-    const build = r.categories.find((c) => c.id === "builder");
-    expect(build?.points).toBeGreaterThan(0);
-  });
-
-  it("returns Cross-chain Ready for bridge-heavy behavior", () => {
-    const now = NOW;
-    const facts = baseFacts({
-      sources: {
-        ...baseFacts().sources,
-        explorerLegacy: {
-          ok: true,
-          latencyMs: 1,
-          data: {
-            txs: [
-              tx(1, now, CONTRACT_REFS.bridge[0], "0xabcd"),
-              tx(2, now, CONTRACT_REFS.bridge[1], "0xabcd"),
-            ],
-            tokenTxs: [
-              {
-                hash: "0x" + "c".repeat(64),
-                blockNumber: 1,
-                timeStamp: now,
-                from: ADDR,
-                to: "0x" + "2".repeat(40),
-                contractAddress: CONTRACT_REFS.stablecoins[0],
-                tokenSymbol: "USDC",
-                value: "1000000",
-              },
-            ],
-          },
-        },
-      },
-    });
-    const r = score(facts);
-    const stable = r.categories.find((c) => c.id === "stablecoin");
-    const cc = r.categories.find((c) => c.id === "crosschain");
-    expect(stable?.points).toBeGreaterThan(0);
-    expect(cc?.points).toBeGreaterThan(0);
-    expect(["Cross-chain Ready", "Payment User", "Settlement Focused"]).toContain(r.profile);
+  it("attributes verified Circle product interactions when registry matches", () => {
+    const now = Math.floor(Date.now() / 1000);
+    const facts = baseFacts(now);
+    facts.txs = [
+      { hash: "0x1", blockNumber: 1, timeStamp: now, from: ADDR, to: "0x867650F5eAe8df91445971f14d89fd84F0C9a9f8", input: "0x", gasUsed: 100, isError: "0" },
+    ];
+    const report = score(facts);
+    const circleProducts = report.categories.find((c) => c.id === "circle-products");
+    expect(circleProducts?.status).toBe("scored");
+    expect(circleProducts?.score).toBeGreaterThan(0);
   });
 });

@@ -7,47 +7,44 @@ import { AnalyzeButton } from "@/components/AnalyzeButton";
 import { isArcAddress } from "@/lib/validation";
 
 export default function HomePage() {
-  const router = useRouter();
   const [address, setAddress] = React.useState("");
-  const [loading, setLoading] = React.useState(false);
-
-  function handleAnalyze() {
-    if (!isArcAddress(address)) return;
-    setLoading(true);
-    router.push(`/analyze?address=${encodeURIComponent(address)}`);
-  }
+  const router = useRouter();
+  const valid = address.trim().length > 0 && isArcAddress(address.trim());
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-2xl flex-col items-center justify-center px-6 text-center">
-      <p className="mb-3 text-xs uppercase tracking-[0.3em] text-primary">
-        Arc Testnet · Community Tool
-      </p>
-      <h1 className="text-3xl font-bold sm:text-4xl">
-        How ready is this wallet for the Arc ecosystem?
-      </h1>
-      <p className="mt-4 max-w-md text-sm text-muted-foreground">
-        Enter a wallet address. We analyze public Arc Testnet activity and
-        produce a transparent Readiness Report. Not affiliated with Arc Network.
-      </p>
-
-      <div className="mt-10 flex w-full flex-col items-stretch gap-3 sm:flex-row sm:items-center">
-        <WalletInput
-          value={address}
-          onChange={setAddress}
-          onSubmit={handleAnalyze}
-          disabled={loading}
-        />
-        <AnalyzeButton
-          address={address}
-          onClick={handleAnalyze}
-          loading={loading}
-        />
+    <div className="mx-auto max-w-2xl px-4 py-24">
+      <div className="mb-8 text-center">
+        <h1 className="text-3xl font-bold">Circle Ecosystem Footprint</h1>
+        <p className="mt-2 text-muted-foreground">
+          Understand how an EVM address actually uses Arc and Circle infrastructure.
+        </p>
+        <p className="mt-2 text-xs text-muted-foreground">
+          This is an independent analysis tool. It does not determine airdrop eligibility, rewards, allowlists,
+          account status, compliance status, or any official Circle / Arc qualification. Results are based only
+          on publicly observable onchain evidence.
+        </p>
       </div>
 
-      <p className="mt-6 text-xs text-muted-foreground">
-        Data is read-only from public Arc Testnet sources. No wallet connection
-        or signing required.
-      </p>
-    </main>
+      <form
+        className="flex gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (valid) router.push(`/analyze?address=${encodeURIComponent(address.trim())}`);
+        }}
+      >
+        <WalletInput
+          value={address}
+          onChange={(v) => setAddress(v)}
+          onSubmit={() => {}}
+          disabled={false}
+        />
+        <AnalyzeButton address={address} onClick={() => { if (valid) router.push(`/analyze?address=${encodeURIComponent(address.trim())}`); }} loading={false} />
+      </form>
+
+      <div className="mt-6 text-center text-xs text-muted-foreground">
+        Read-only, independent analysis of observable Arc activity, USDC usage, Circle cross-chain flows,
+        and officially attributable product interactions.
+      </div>
+    </div>
   );
 }

@@ -2,52 +2,70 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { WalletSummary } from "@/lib/types";
 
 function fmt(n: number | null): string {
-  return n == null ? "—" : n.toLocaleString();
+  return n == null ? "—" : String(n);
 }
 
-function fmtDate(unix: number | null): string {
-  if (!unix) return "—";
-  return new Date(unix * 1000).toLocaleDateString();
-}
-
-function fmtUsdc(wei: string | null): string {
-  if (!wei) return "—";
-  // Native USDC uses 18 decimals on Arc.
-  const units = Number(wei) / 1e18;
-  return `${units.toLocaleString(undefined, { maximumFractionDigits: 6 })} USDC`;
-}
-
-export function WalletSummaryCard({
-  summary,
-}: {
-  summary: WalletSummary;
-}) {
-  const arcNative = [
-    ["First seen", fmtDate(summary.firstSeenTime)],
-    ["Native USDC balance", fmtUsdc(summary.nativeBalanceUsdc)],
-    ["Total transactions", fmt(summary.totalTransactions)],
-    ["Successful / failed", `${fmt(summary.successfulTransactions)} / ${fmt(summary.failedTransactions)}`],
-    ["Stablecoin transfers", fmt(summary.stablecoinTransfers)],
-    ["USDC / EURC / USYC", `${fmt(summary.usdcTransfers)} / ${fmt(summary.eurcTransfers)} / ${fmt(summary.usycTransfers)}`],
-    ["Bridge interactions", fmt(summary.bridgeInteractions)],
-    ["Developer-tool interactions", fmt(summary.developerToolInteractions)],
-    ["Contract deployments", fmt(summary.contractDeployments)],
-  ];
-
+export function WalletSummaryCard({ summary }: { summary: WalletSummary }) {
   return (
     <Card>
       <CardHeader>
         <CardTitle>Wallet Summary</CardTitle>
       </CardHeader>
       <CardContent>
-        <dl className="divide-y divide-border">
-          {arcNative.map(([k, v]) => (
-            <div key={k} className="flex items-center justify-between py-2 text-sm">
-              <dt className="text-muted-foreground">{k}</dt>
-              <dd className="font-mono text-right">{v}</dd>
-            </div>
-          ))}
-        </dl>
+        <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
+          <div>
+            <div className="text-xs text-muted-foreground">Total transactions</div>
+            <div className="font-medium">{fmt(summary.totalTransactions)}</div>
+          </div>
+          <div>
+            <div className="text-xs text-muted-foreground">Successful</div>
+            <div className="font-medium">{fmt(summary.successfulTransactions)}</div>
+          </div>
+          <div>
+            <div className="text-xs text-muted-foreground">Failed</div>
+            <div className="font-medium">{fmt(summary.failedTransactions)}</div>
+          </div>
+          <div>
+            <div className="text-xs text-muted-foreground">Active days</div>
+            <div className="font-medium">{fmt(summary.activeDays)}</div>
+          </div>
+          <div>
+            <div className="text-xs text-muted-foreground">Unique counterparties</div>
+            <div className="font-medium">{fmt(summary.uniqueCounterparties)}</div>
+          </div>
+          <div>
+            <div className="text-xs text-muted-foreground">USDC transfers</div>
+            <div className="font-medium">{fmt(summary.usdcTransfers)}</div>
+          </div>
+          <div>
+            <div className="text-xs text-muted-foreground">EURC transfers</div>
+            <div className="font-medium">{fmt(summary.eurcTransfers)}</div>
+          </div>
+          <div>
+            <div className="text-xs text-muted-foreground">USYC transfers</div>
+            <div className="font-medium">{fmt(summary.usycTransfers)}</div>
+          </div>
+          <div>
+            <div className="text-xs text-muted-foreground">Bridge interactions</div>
+            <div className="font-medium">{fmt(summary.bridgeInteractions)}</div>
+          </div>
+          <div>
+            <div className="text-xs text-muted-foreground">Developer tool interactions</div>
+            <div className="font-medium">{fmt(summary.developerToolInteractions)}</div>
+          </div>
+          <div>
+            <div className="text-xs text-muted-foreground">Contract deployments</div>
+            <div className="font-medium">{fmt(summary.contractDeployments)}</div>
+          </div>
+          <div>
+            <div className="text-xs text-muted-foreground">Inbound transfers</div>
+            <div className="font-medium">{fmt(summary.inboundTransfers)}</div>
+          </div>
+          <div>
+            <div className="text-xs text-muted-foreground">Outbound transfers</div>
+            <div className="font-medium">{fmt(summary.outboundTransfers)}</div>
+          </div>
+        </div>
       </CardContent>
     </Card>
   );

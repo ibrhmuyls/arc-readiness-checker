@@ -2,85 +2,72 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import type { ArcProfile } from "@/lib/types";
+import type { FootprintProfile } from "@/lib/types";
 
-const PROFILE_META: Record<
-  ArcProfile,
-  { title: string; description: string; accent: string }
-> = {
-  "Stablecoin Native User": {
-    title: "Stablecoin Native User",
-    description:
-      "This wallet consistently uses Arc's native stablecoins (USDC/EURC/USYC) as its primary on-chain asset.",
-    accent: "text-emerald-300",
-  },
-  "Settlement Focused": {
-    title: "Settlement Focused",
-    description:
-      "This wallet participates reliably in Arc settlement activity, with consistent transaction behavior.",
-    accent: "text-sky-300",
-  },
-  "Cross-chain Ready": {
-    title: "Cross-chain Ready",
-    description:
-      "This wallet interacts with Arc's cross-chain infrastructure (CCTP / Gateway), indicating familiarity with multi-chain flows.",
-    accent: "text-violet-300",
-  },
-  "Financial User": {
-    title: "Financial User",
-    description:
-      "This wallet shows payment, treasury, or FX-like patterns using stablecoins and known Arc financial primitives.",
-    accent: "text-amber-300",
-  },
-  Builder: {
-    title: "Builder",
-    description:
-      "This wallet demonstrates developer activity: contract deployments and developer-tool interactions.",
-    accent: "text-cyan-300",
-  },
-  "Infrastructure User": {
-    title: "Infrastructure User",
-    description:
-      "This wallet uses Arc infrastructure primitives (Multicall3, Permit2, StableFX, Memo).",
-    accent: "text-indigo-300",
-  },
-  "Payment User": {
-    title: "Payment User",
-    description:
-      "This wallet appears to use Arc for recurring payment-like behavior, with bridge and stablecoin activity.",
-    accent: "text-teal-300",
-  },
-  "Low Activity": {
-    title: "Low Activity",
-    description:
-      "This wallet has minimal Arc Testnet activity and does not yet show a clear behavioral profile.",
+const PROFILE_META: Record<FootprintProfile, { title: string; description: string; accent: string }> = {
+  "No Verified Arc Footprint Yet": {
+    title: "No Verified Arc Footprint Yet",
+    description: "No observable Arc Testnet activity was found for this address.",
     accent: "text-muted-foreground",
   },
-  "New Participant": {
-    title: "New Participant",
-    description:
-      "No measurable Arc Testnet activity found. This wallet has not yet participated in the Arc ecosystem.",
-    accent: "text-muted-foreground",
+  "Limited Arc Explorer": {
+    title: "Limited Arc Explorer",
+    description: "A small number of Arc transactions were observed, without enough spread to infer sustained usage.",
+    accent: "text-yellow-400",
   },
-  "Institutional-like": {
-    title: "Institutional-like",
-    description:
-      "This wallet exhibits behavior consistent with institutional or treasury-style activity (e.g., USYC, repeated structured transfers).",
-    accent: "text-rose-300",
+  "Early Stablecoin Explorer": {
+    title: "Early Stablecoin Explorer",
+    description: "Some stablecoin transfers were observed, but not enough history for a sustained-usage conclusion.",
+    accent: "text-yellow-400",
+  },
+  "Recurring USDC User": {
+    title: "Recurring USDC User",
+    description: "Recurring stablecoin activity is visible, primarily in USDC, without verified cross-chain flows.",
+    accent: "text-blue-400",
+  },
+  "Arc Application User": {
+    title: "Arc Application User",
+    description: "Bridge or application-contract activity is visible, but not enough verified stablecoin breadth for a broader profile.",
+    accent: "text-blue-400",
+  },
+  "Circle Cross-Chain User": {
+    title: "Circle Cross-Chain User",
+    description: "Verified CCTP/Gateway interactions and stablecoin activity were observed together.",
+    accent: "text-emerald-400",
+  },
+  "Arc Contract Deployer": {
+    title: "Arc Contract Deployer",
+    description: "Contract deployment activity was observed on Arc Testnet.",
+    accent: "text-purple-400",
+  },
+  "Multi-Product Circle User": {
+    title: "Multi-Product Circle User",
+    description: "Evidence spans multiple verified Circle products or primitives.",
+    accent: "text-emerald-400",
+  },
+  "Sustained Arc Ecosystem Participant": {
+    title: "Sustained Arc Ecosystem Participant",
+    description: "Broad, time-distributed evidence across transactions, stablecoins, and/or products.",
+    accent: "text-emerald-400",
+  },
+  "Institutional-like Participant": {
+    title: "Institutional-like Participant",
+    description: "Potentially permissioned product usage was observed. This label is descriptive, not an affiliation claim.",
+    accent: "text-orange-400",
   },
 };
 
-export function ArcProfileCard({ profile }: { profile: ArcProfile }) {
-  const meta = PROFILE_META[profile] ?? PROFILE_META["Low Activity"];
+export function ArcProfileCard({ profile }: { profile: FootprintProfile }) {
+  const meta = PROFILE_META[profile] ?? PROFILE_META["No Verified Arc Footprint Yet"];
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle className={cn("text-base font-semibold", meta.accent)}>
-          {meta.title}
-        </CardTitle>
+        <CardTitle>Arc Profile</CardTitle>
       </CardHeader>
       <CardContent>
-        <p className="text-sm text-muted-foreground">{meta.description}</p>
+        <div className={cn("text-lg font-semibold", meta.accent)}>{meta.title}</div>
+        <p className="mt-2 text-sm text-muted-foreground">{meta.description}</p>
       </CardContent>
     </Card>
   );
