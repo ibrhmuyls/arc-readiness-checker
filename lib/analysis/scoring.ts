@@ -31,7 +31,7 @@ export function score(facts: RawFacts): CircleFootprintReport {
 
   const successfulTxs = txs.filter((t) => t.isError === "0");
   const failedTxs = txs.filter((t) => t.isError !== "0");
-  const activeDays = uniqueDays(txs, tokenTxs);
+  const activeDays = Math.max(1, uniqueDays(txs, tokenTxs));
   const days = Math.max(1, activeDays);
   const meu = address.toLowerCase();
 
@@ -111,11 +111,41 @@ export function score(facts: RawFacts): CircleFootprintReport {
   ];
 
   const scored = categories.filter((c) => c.status === "scored");
-  const earned = scored.reduce((s, c) => s + c.score, 0);
-  const maxEarned = scored.reduce((s, c) => s + c.maxScore, 0);
-  const computed = maxEarned > 0 ? Math.round((earned / maxEarned) * 100) : 0;
-  const evidenceAware = scored.length === 0 ? 0 : computed;
-  const overall = Math.min(computed, evidenceAware || 20);
+  const explicit = [sourcesOk, rpcOk].some(Boolean);
+  const noActivity = txs.length === 0 && tokenTxs.length === 0;
+  const noActivityScore = noActivity || !explicit ? 0 : null;
+
+  const overallWeights = {
+    "arc-native": 0.20,
+    stablecoins: 0.20,
+    "cross-chain": 0.20,
+    "circle-products": 0.15,
+    sustained: 0.15,
+    builder: 0.10,
+    evidence: 0.10,
+  };
+
+  let weightedSum = 0;
+  let weightUsed = 0;
+  for (const category of categories) {
+    const weight = overallWeights[category.id as keyof typeof overallWeights];
+    if (typeof weight !== "number") continue;
+    if (category.status === "scored") {
+      weightedSum += (category.score / category.maxScore) * weight * 100;
+      weightUsed += weight;
+    }
+  }
+
+  let overall = 0;
+  if (weightUsed > 0 && noActivityScore !== 0) {
+    overall = Math.round((weightedSum / weightUsed) * 100);
+  }
+
+  const lowEvidenceCap = txs.length < 5 ? Math.min(overall, 45) : overall;
+  const categorizedScore = scored.length > 0 ? lowEvidenceCap : 0;
+  const overallScore = noActivityScore ?? categorizedScore;
+
+  const evidenceCoverageBreakdown = buildEvidenceCoverageBreakdown(totalStablecoinTransfers, categories, sourcesOk, rpcOk, activeDays, bridgeInteractions, contractDeployments);
 
   const primaryProfile = deriveProfile(successfulTxs.length, bridgeInteractions, contractDeployments, totalStablecoinTransfers, usdcTxs.length, eurcTxs.length, usycTxs.length, days);
   const confidenceLevel = deriveConfidence(activeDays, txs.length, categories);
@@ -123,8 +153,9 @@ export function score(facts: RawFacts): CircleFootprintReport {
   return {
     address,
     network: "Arc Testnet",
-    verifiedCircleActivityScore: overall,
-    evidenceCoverageScore: (categories.find((c) => c.id === "evidence") || { score: 0, maxScore: 100 }).score,
+    verifiedCircleActivityScore: Math.max(0, Math.min(100, overallScore)),
+    evidenceCoverageScore: evidenceCoverageBreakdown.overall,
+    evidenceCoverageBreakdown,
     confidenceLevel,
     primaryProfile,
     secondaryTags: [],
@@ -136,13 +167,50 @@ export function score(facts: RawFacts): CircleFootprintReport {
       "Testnet only. No mainnet evidence used.",
       "Some categories depend on explorer coverage and may undercount.",
       "Off-chain product usage is not observable.",
+      "This tool does not determine eligibility, rewards, allowlists, compliance status, or any official Circle / Arc qualification.",
     ],
     registrySources: [
       "https://docs.arc.io/arc/references/contract-addresses.md",
       "https://docs.arc.io/arc/references/evm-differences.md",
+      "https://developers.circle.com/",
+      "https://www.circle.com/",
     ],
     lastUpdated: Date.now(),
   };
+}
+
+function buildEvidenceCoverageBreakdown(
+  totalStablecoinTransfers: number,
+  categories: CategoryScore[],
+  sourcesOk: boolean,
+  rpcOk: boolean,
+  activeDays: number,
+  bridgeInteractions: number,
+  deployments: number
+): CircleFootprintReport["evidenceCoverageBreakdown"] {
+  const hasArcEvidence = categories.find((c) => c.id === "arc-native")?.status === "scored";
+  const hasStablecoinEvidence = totalStablecoinTransfers > 0;
+  const hasCrossChainEvidence = bridgeInteractions > 0;
+  const hasProductEvidence = categories.find((c) => c.id === "circle-products")?.status === "scored";
+  const hasHistoricalEvidence = activeDays >= 7;
+  const availableSources = [sourcesOk, rpcOk].filter(Boolean).length;
+
+  const arcCoverage = hasArcEvidence ? 80 : 20;
+  const productCoverage = hasProductEvidence ? 70 : 15;
+  const historicalCoverage = activeDays >= 30 ? 90 : activeDays >= 7 ? 60 : 25;
+  const crossChainCoverage = hasCrossChainEvidence ? 80 : hasStablecoinEvidence ? 35 : 20;
+  const sourceCoverage = Math.min(100, availableSources * 40 + 20);
+
+  const components = [
+    { label: "Arc coverage", value: arcCoverage },
+    { label: "Circle product attribution", value: productCoverage },
+    { label: "Historical depth", value: historicalCoverage },
+    { label: "Cross-chain coverage", value: crossChainCoverage },
+    { label: "Source availability", value: sourceCoverage },
+  ];
+
+  const overall = Math.round(components.reduce((sum, item) => sum + item.value, 0) / components.length);
+  return { components, overall };
 }
 
 function scoreArcNative(txs: RawFacts["txs"], tokenTxs: RawFacts["tokenTxs"], me: Address, sourcesOk: boolean, rpcOk: boolean): CategoryScore {
@@ -168,6 +236,7 @@ function scoreArcNative(txs: RawFacts["txs"], tokenTxs: RawFacts["tokenTxs"], me
     score: score0,
     maxScore: 100,
     status: "scored",
+    weight: 0.20,
     summary:
       score0 >= 75
         ? `Established Arc activity over ${days} ${days === 1 ? "day" : "days"} with ${successfulTxs.length} successful transactions.`
@@ -193,6 +262,7 @@ function scoreStablecoins(tokenTxs: RawFacts["tokenTxs"], usdcTxs: RawFacts["tok
       score: 0,
       maxScore: 100,
       status: "insufficient-data",
+      weight: 0.20,
       summary: "No stablecoin transfer events observed.",
       evidence: [],
       notObserved: ["No USDC/EURC/USYC transfers observed on Arc Testnet"],
@@ -224,6 +294,7 @@ function scoreStablecoins(tokenTxs: RawFacts["tokenTxs"], usdcTxs: RawFacts["tok
     score: score0,
     maxScore: 100,
     status: "scored",
+    weight: 0.20,
     summary: score0 > 55 ? `Recurring stablecoin activity: ${tokenTxs.length} transfers across ${days} ${days === 1 ? "day" : "days"}. ${notes.join(", ")}.` : `Limited stablecoin activity: ${tokenTxs.length} transfer(s).`,
     evidence: [`${tokenTxs.length} stablecoin transfers`, `${uniqCounterparties} unique counterparties`, `${days} active ${days === 1 ? "day" : "days"}`, ...notes],
     notObserved: [],
@@ -242,6 +313,7 @@ function scoreCrossChain(txs: RawFacts["txs"], tokenTxs: RawFacts["tokenTxs"], m
       score: 0,
       maxScore: 100,
       status: "insufficient-data",
+      weight: 0.20,
       summary: "No verified Circle cross-chain activity observed.",
       evidence: [],
       notObserved: ["No CCTP/Gateway interactions detected"],
@@ -256,6 +328,7 @@ function scoreCrossChain(txs: RawFacts["txs"], tokenTxs: RawFacts["tokenTxs"], m
     score: Math.min(100, bridgeCount * 12),
     maxScore: 100,
     status: "scored",
+    weight: 0.20,
     summary: `Verified Circle bridge activity: ${bridgeCount} CCTP/Gateway interaction(s).`,
     evidence: [`${bridgeCount} CCTP/Gateway interactions`],
     notObserved: [],
@@ -284,6 +357,7 @@ function scoreCircleProducts(txs: RawFacts["txs"], tokenTxs: RawFacts["tokenTxs"
       score: 0,
       maxScore: 100,
       status: "insufficient-data",
+      weight: 0.15,
       summary: "No verified Circle product interactions observed.",
       evidence: [],
       notObserved: ["No StableFX, GatewayWallet, or other verified product interactions observed"],
@@ -299,6 +373,7 @@ function scoreCircleProducts(txs: RawFacts["txs"], tokenTxs: RawFacts["tokenTxs"
     score: Math.min(100, 20 + products.size * 20),
     maxScore: 100,
     status: "scored",
+    weight: 0.15,
     summary: `Verified Circle product usage detected: ${products.size} product(s).`,
     evidence: [`Products observed: ${products.size}`, `Registry-backed attribution`],
     notObserved: [],
@@ -317,6 +392,7 @@ function scoreSustainedActivity(txs: RawFacts["txs"], tokenTxs: RawFacts["tokenT
       score: 0,
       maxScore: 100,
       status: "insufficient-data",
+      weight: 0.15,
       summary: "No observed sustained financial activity.",
       evidence: [],
       notObserved: ["Insufficient time-distributed evidence"],
@@ -341,6 +417,7 @@ function scoreSustainedActivity(txs: RawFacts["txs"], tokenTxs: RawFacts["tokenT
     score: ratioScore + spanScore + diversityScore + recurrenceScore,
     maxScore: 100,
     status: "scored",
+    weight: 0.15,
     summary: `Observed over ${days} ${days === 1 ? "day" : "days"} with ${successRatio}% successful execution and ${uniqCounterparties} counterparties.`,
     evidence: [`${days} active ${days === 1 ? "day" : "days"}`, `Successful execution: ${successRatio}%`, `${uniqCounterparties} unique counterparties`],
     notObserved: [],
@@ -359,6 +436,7 @@ function scoreBuilderFootprint(txs: RawFacts["txs"], deployments: number, toolIn
       score: 0,
       maxScore: 100,
       status: "insufficient-data",
+      weight: 0.10,
       summary: "No verified builder evidence observed.",
       evidence: [],
       notObserved: ["No contract deployments or developer-primitive interactions found"],
@@ -373,6 +451,7 @@ function scoreBuilderFootprint(txs: RawFacts["txs"], deployments: number, toolIn
     score: Math.min(100, deployments * 40 + toolInteractions * 15),
     maxScore: 100,
     status: "scored",
+    weight: 0.10,
     summary: `${deployments} deployment(s), ${toolInteractions} developer-tool interaction(s) observed.`,
     evidence: [`${deployments} deployment(s)`, `${toolInteractions} developer-tool interactions`],
     notObserved: [],
@@ -393,6 +472,7 @@ function scoreEvidenceQuality(totalTx: number, activeDays: number, sourcesOk: bo
       score: coverage,
       maxScore: 100,
       status: "insufficient-data",
+      weight: 0.10,
       summary: "Very limited evidence available.",
       evidence: [`${totalTx} transactions`, `${activeDays} active ${activeDays === 1 ? "day" : "days"}`, `${available}/2 sources available`],
       notObserved: ["Historical depth limited", "Cross-chain coverage unavailable"],
@@ -408,6 +488,7 @@ function scoreEvidenceQuality(totalTx: number, activeDays: number, sourcesOk: bo
     score: coverage,
     maxScore: 100,
     status: "scored",
+    weight: 0.10,
     summary: `Moderate evidence coverage across ${available} source(s).`,
     evidence: [`${totalTx} transactions`, `${activeDays} active ${activeDays === 1 ? "day" : "days"}`, `${available}/2 sources available`],
     notObserved: [],
@@ -424,6 +505,7 @@ function arcDisabled(label: string): CategoryScore {
     score: 0,
     maxScore: 100,
     status: "not-assessed",
+    weight: undefined,
     summary: "Not assessed due to unavailable data sources.",
     evidence: [],
     notObserved: [],

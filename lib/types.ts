@@ -116,6 +116,7 @@ export type CategoryScore = {
   notObserved: string[];
   source: string;
   limitations: string;
+  weight?: number;
 };
 
 export type ConfidenceLevel = "Low" | "Moderate" | "High";
@@ -136,11 +137,20 @@ export type ReadinessReport = CircleFootprintReport;
 
 export type ArcProfile = FootprintProfile;
 
+export type EvidenceCoverageBreakdownItem = {
+  label: string;
+  value: number;
+};
+
 export type CircleFootprintReport = {
   address: Address;
   network: string;
   verifiedCircleActivityScore: number;
   evidenceCoverageScore: number;
+  evidenceCoverageBreakdown: {
+    components: EvidenceCoverageBreakdownItem[];
+    overall: number;
+  };
   confidenceLevel: ConfidenceLevel;
   primaryProfile: FootprintProfile;
   secondaryTags: string[];

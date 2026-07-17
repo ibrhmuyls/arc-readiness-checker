@@ -1,27 +1,24 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { WalletInput } from "@/components/WalletInput";
 import { AnalyzeButton } from "@/components/AnalyzeButton";
 import { isArcAddress } from "@/lib/validation";
 
 export default function HomePage() {
   const [address, setAddress] = React.useState("");
-  const router = useRouter();
   const valid = address.trim().length > 0 && isArcAddress(address.trim());
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-24">
-      <div className="mb-8 text-center">
-        <h1 className="text-3xl font-bold">Circle Ecosystem Footprint</h1>
-        <p className="mt-2 text-muted-foreground">
-          Understand how an EVM address actually uses Arc and Circle infrastructure.
+      <div className="mb-10 text-center">
+        <h1 className="text-3xl font-semibold">Circle Ecosystem Footprint</h1>
+        <p className="mt-3 text-muted-foreground">
+          See the verifiable onchain footprint of an address across Arc and Circle infrastructure.
         </p>
-        <p className="mt-2 text-xs text-muted-foreground">
-          This is an independent analysis tool. It does not determine airdrop eligibility, rewards, allowlists,
-          account status, compliance status, or any official Circle / Arc qualification. Results are based only
-          on publicly observable onchain evidence.
+        <p className="mt-3 text-xs text-muted-foreground">
+          Independent read-only analysis. Not eligibility, rewards, or an official Circle / Arc qualification.
         </p>
       </div>
 
@@ -29,7 +26,7 @@ export default function HomePage() {
         className="flex gap-2"
         onSubmit={(e) => {
           e.preventDefault();
-          if (valid) router.push(`/analyze?address=${encodeURIComponent(address.trim())}`);
+          if (valid) window.location.href = `/analyze?address=${encodeURIComponent(address.trim())}`;
         }}
       >
         <WalletInput
@@ -38,12 +35,22 @@ export default function HomePage() {
           onSubmit={() => {}}
           disabled={false}
         />
-        <AnalyzeButton address={address} onClick={() => { if (valid) router.push(`/analyze?address=${encodeURIComponent(address.trim())}`); }} loading={false} />
+        <AnalyzeButton address={address} onClick={() => { if (valid) window.location.href = `/analyze?address=${encodeURIComponent(address.trim())}`; }} loading={false} />
       </form>
 
-      <div className="mt-6 text-center text-xs text-muted-foreground">
-        Read-only, independent analysis of observable Arc activity, USDC usage, Circle cross-chain flows,
-        and officially attributable product interactions.
+      <div className="mt-8 rounded-lg border bg-muted/40 p-4 text-left text-xs text-muted-foreground">
+        <p className="mb-2 font-medium text-foreground">What this tool shows</p>
+        <ul className="list-disc space-y-1 pl-5">
+          <li>Verified USDC, EURC, and USYC activity on Arc Testnet</li>
+          <li>Verified CCTP and Gateway cross-chain interactions</li>
+          <li>Observed Arc interaction patterns and developer-primitive usage</li>
+          <li>Evidence-backed footprint categories, not speculative scores</li>
+        </ul>
+      </div>
+
+      <div className="mt-6 flex justify-center gap-6 text-xs text-muted-foreground">
+        <Link className="underline" href="/methodology">Methodology</Link>
+        <Link className="underline" href="#data-sources">Data Sources</Link>
       </div>
     </div>
   );

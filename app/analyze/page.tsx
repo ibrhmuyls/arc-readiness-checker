@@ -6,11 +6,17 @@ import type { CircleFootprintReport } from "@/lib/types";
 import { ScoreBreakdown } from "@/components/ScoreBreakdown";
 import { WalletSummaryCard } from "@/components/WalletSummary";
 import { ArcProfileCard } from "@/components/ArcProfile";
+import { EvidenceCoverageCard } from "@/components/EvidenceCoverage";
 import { ErrorState } from "@/components/ErrorState";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export const dynamic = "force-dynamic";
+
+function fmtTime(ts: number | null): string {
+  if (!ts) return "—";
+  return new Date(ts * 1000).toLocaleString();
+}
 
 export default async function AnalyzePage({ searchParams }: { searchParams: Promise<{ address?: string }> }) {
   const params = await searchParams;
@@ -25,9 +31,7 @@ export default async function AnalyzePage({ searchParams }: { searchParams: Prom
           </CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground">
-              This is an independent analysis tool. It does not determine airdrop eligibility, rewards, allowlists,
-              account status, compliance status, or any official Circle / Arc qualification. Results are based only
-              on publicly observable onchain evidence.
+              Independent read-only analysis. Not eligibility, rewards, or an official Circle / Arc qualification.
             </p>
             <form method="get" className="mt-4 flex gap-2">
               <input
@@ -47,7 +51,7 @@ export default async function AnalyzePage({ searchParams }: { searchParams: Prom
   try {
     address = normalizeAddress(rawAddress);
   } catch {
-    return <ErrorState message="Invalid Arc wallet address." onRetry={() => {}} />;
+    return <ErrorState message="Invalid address format." onRetry={() => {}} />;
   }
 
   let report: CircleFootprintReport | null = null;
@@ -55,7 +59,7 @@ export default async function AnalyzePage({ searchParams }: { searchParams: Prom
     const facts = await collectFacts(address);
     report = score(facts);
   } catch {
-    return <ErrorState message="Analysis failed. The Arc Testnet sources may be unavailable." onRetry={() => {}} />;
+    return <ErrorState message="Analysis failed. Sources may be unavailable." onRetry={() => {}} />;
   }
 
   if (!report) {
@@ -64,14 +68,15 @@ export default async function AnalyzePage({ searchParams }: { searchParams: Prom
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-10">
-      <div className="mb-6 flex items-start justify-between gap-4">
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-xl font-semibold">Circle Ecosystem Footprint</h1>
           <p className="mt-1 break-all font-mono text-sm text-muted-foreground">{report.address}</p>
+          <p className="mt-1 text-xs text-muted-foreground">Last updated: {new Date(report.lastUpdated).toLocaleString()}</p>
         </div>
-        <div className="text-right">
+        <div className="text-left sm:text-right">
           <div className="text-3xl font-bold">{report.verifiedCircleActivityScore}/100</div>
-          <div className="text-xs text-muted-foreground">Verified Circle Activity</div>
+          <div className="text-xs text-muted-foreground">Verified Circle Activity Score</div>
         </div>
       </div>
 
@@ -82,12 +87,12 @@ export default async function AnalyzePage({ searchParams }: { searchParams: Prom
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{report.evidenceCoverageScore}/100</div>
-            <p className="text-xs text-muted-foreground">Low coverage reduces confidence, it does not inflate scores.</p>
+            <p className="text-xs text-muted-foreground">Lower coverage reduces confidence; it does not inflate scores.</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader>
-            <CardTitle className="text-sm font-medium">Confidence Level</CardTitle>
+            <CardTitle className="text-sm font-medium">Confidence</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{report.confidenceLevel}</div>
@@ -106,6 +111,10 @@ export default async function AnalyzePage({ searchParams }: { searchParams: Prom
       </div>
 
       <div className="mb-6">
+        <EvidenceCoverageCard breakdown={report.evidenceCoverageBreakdown} />
+      </div>
+
+      <div className="mb-6">
         <ArcProfileCard profile={report.primaryProfile} />
       </div>
 
@@ -115,6 +124,15 @@ export default async function AnalyzePage({ searchParams }: { searchParams: Prom
 
       <div className="mb-6">
         <WalletSummaryCard summary={report.summary} />
+      </div>
+
+      <div className="mb-6 rounded-md border bg-muted/40 p-4 text-xs text-muted-foreground">
+        <p className="mb-1 font-medium text-foreground">Disclaimer</p>
+        <p>
+          This is an independent analysis tool. It does not determine airdrop eligibility, rewards, allowlists,
+          account status, compliance status, or any official Circle / Arc qualification. Results are based only
+          on publicly observable onchain evidence.
+        </p>
       </div>
 
       <div className="mb-6">
@@ -128,15 +146,16 @@ export default async function AnalyzePage({ searchParams }: { searchParams: Prom
                 <li key={item}>{item}</li>
               ))}
             </ul>
+            <div className="mt-3 text-xs text-muted-foreground">
+              <Link className="underline" href="/methodology">Methodology and registry sources</Link>
+            </div>
           </CardContent>
         </Card>
       </div>
 
       <form method="get" className="mt-8">
         <input type="hidden" name="address" value={report.address} />
-        <Button type="submit" variant="outline">
-          Refresh analysis
-        </Button>
+        <Button type="submit" variant="outline">Refresh analysis</Button>
       </form>
     </div>
   );
