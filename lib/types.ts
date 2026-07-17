@@ -118,6 +118,9 @@ export type CategoryScore = {
   limitations: string;
   weight?: number;
   formula?: string;
+  timestamp?: string;
+  publicSource?: string;
+  confidence?: ConfidenceLevel;
 };
 
 export type ConfidenceLevel = "Low" | "Moderate" | "High";

@@ -54,7 +54,7 @@ describe("scoring", () => {
     }));
     const report = score(makeFacts({ txs, tokenTxs }));
     expect(report.scoreValue).toBeGreaterThan(0);
-    expect(report.categories.find((c) => c.id === "stablecoin-adoption")?.status).toBe("scored");
+    expect(report.categories.find((c) => c.id === "circle-stablecoin-adoption")?.status).toBe("scored");
   });
 
   it("returns 0 and not-assessed when data sources are unavailable", () => {
