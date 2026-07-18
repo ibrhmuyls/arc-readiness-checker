@@ -1,76 +1,127 @@
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
+import { OFFICIAL_SOURCES, REGISTRY } from "@/lib/registry/registry";
+import { EVM_CHAINS, ARC_CHAIN_ID } from "@/lib/registry/chains";
+import { validateRegistry } from "@/lib/registry/validate";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
+export const dynamic = "force-dynamic";
+
 export default function MethodologyPage() {
+  const validation = validateRegistry();
+
   return (
-    <div className="mx-auto max-w-3xl px-4 py-10">
-      <h1 className="text-2xl font-semibold">Methodology</h1>
+    <main className="mx-auto max-w-3xl px-4 py-10">
+      <h1 className="text-2xl font-semibold">Methodology & Registry Sources</h1>
       <p className="mt-2 text-sm text-muted-foreground">
-        This page explains what Circle Ecosystem Footprint can observe, what it cannot, and how it derives its outputs.
+        Circle Ecosystem Footprint is a read-only, evidence-first analyzer. Every
+        classification is matched against an official contract registry; no
+        product claim is inferred from generic transfers, gas, or tooling.
       </p>
 
       <Card className="mt-6">
         <CardHeader>
-          <CardTitle>What this tool observes</CardTitle>
+          <CardTitle>Registry version {REGISTRY.version}</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-2 text-sm text-muted-foreground">
-          <p>Public transaction and token-transfer events from onchain data sources.</p>
-          <p>Interactions with official Circle and Arc contract addresses from an official registry.</p>
-          <p>Time distribution, counterparty diversity, and execution outcomes where readable from explorer or RPC evidence.</p>
+        <CardContent className="space-y-2 text-sm">
+          <p>
+            Contracts registered: {validation.totalContracts} · Active:{" "}
+            {validation.activeContracts} · Validation OK:{" "}
+            {validation.ok ? "yes" : "no (see issues)"}.
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Registry generated: {new Date(REGISTRY.generatedAt).toLocaleString()}
+          </p>
         </CardContent>
       </Card>
 
-      <Card className="mt-4">
+      <Card className="mt-6">
         <CardHeader>
-          <CardTitle>What this tool cannot observe</CardTitle>
+          <CardTitle>Supported networks</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-2 text-sm text-muted-foreground">
-          <p>Off-chain product usage, API calls, or private account relationships.</p>
-          <p>Identity, affiliation, KYC status, wealth, intent, creditworthiness, or compliance conclusions.</p>
-          <p>Airdrop eligibility, allowlist status, rewards, or any official Circle / Arc qualification.</p>
-          <p>Products without reliable public onchain attribution from verified contracts.</p>
-        </CardContent>
-      </Card>
-
-      <Card className="mt-4">
-        <CardHeader>
-          <CardTitle>Scoring formula</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2 text-sm text-muted-foreground">
-          <p>Verified Circle Activity Score is a weighted composite:</p>
-          <ul className="list-disc pl-5">
-            <li>Arc Native Usage: 20%</li>
-            <li>USDC / Stablecoin Activity: 20%</li>
-            <li>Circle Cross-Chain Usage: 20%</li>
-            <li>Circle Product Interactions: 15%</li>
-            <li>Sustained Financial Activity: 15%</li>
-            <li>Builder / Contract Footprint: 10%</li>
-            <li>Evidence Quality and Coverage: 10%</li>
-          </ul>
-          <p>Wallets with fewer than 5 relevant transactions cannot exceed 45/100 overall activity score. Wallets with less than 7 observed active days cannot receive High confidence.</p>
-        </CardContent>
-      </Card>
-
-      <Card className="mt-4">
-        <CardHeader>
-          <CardTitle>Registry sources</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2 text-sm text-muted-foreground">
-          <ul className="list-disc pl-5">
-            <li><Link className="underline" href="https://docs.arc.io/arc/references/contract-addresses.md">Arc contract addresses</Link></li>
-            <li><Link className="underline" href="https://docs.arc.io/arc/references/evm-differences.md">Arc EVM differences</Link></li>
-            <li><Link className="underline" href="https://developers.circle.com/">Circle developer docs</Link></li>
-            <li><Link className="underline" href="https://www.circle.com/">Circle</Link></li>
+        <CardContent>
+          <ul className="space-y-1 text-sm">
+            {EVM_CHAINS.map((c) => (
+              <li key={c.name} className="flex items-center justify-between">
+                <span>
+                  {c.name}{" "}
+                  <span className="text-xs text-muted-foreground">
+                    (chainId {c.chainId}, Circle domain {c.circleDomain})
+                  </span>
+                </span>
+                <span
+                  className={
+                    c.chainId === ARC_CHAIN_ID
+                      ? "text-emerald-400"
+                      : "text-amber-300"
+                  }
+                >
+                  {c.rpcStatus === "supported"
+                    ? "Live (public)"
+                    : "Gated (API key)"}
+                </span>
+              </li>
+            ))}
           </ul>
         </CardContent>
       </Card>
 
-      <div className="mt-6">
-        <Button asChild variant="outline">
-          <Link href="/">Back to analysis</Link>
-        </Button>
+      <Card className="mt-6">
+        <CardHeader>
+          <CardTitle>Official sources</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ul className="space-y-1.5 text-sm">
+            {OFFICIAL_SOURCES.map((s) => (
+              <li key={s.url}>
+                <a
+                  className="text-primary underline"
+                  href={s.url}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  {s.title}
+                </a>{" "}
+                <span className="text-xs text-muted-foreground">
+                  — retrieved {new Date(s.retrievedAt).toLocaleDateString()}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </CardContent>
+      </Card>
+
+      <Card className="mt-6">
+        <CardHeader>
+          <CardTitle>Scoring principles</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2 text-sm text-muted-foreground">
+          <p>
+            Four independent outputs: Circle Ecosystem Activity (0–100), Arc
+            Footprint (0–100 or “No verified Arc footprint observed”), Evidence
+            Coverage (0–100 + band), and Confidence (Low/Moderate/High).
+          </p>
+          <p>
+            Hard caps prevent overclaims: fewer than 5 relevant txs caps the
+            global score at 35; fewer than 10 at 50; ordinary single-chain USDC
+            transfers cap at 45; multi-chain presence without CCTP/Gateway caps
+            at 60; multi-network USDC without protocol events caps at 70; scores
+            above 85 require sustained, multi-product activity with deterministic
+            cross-chain linkage.
+          </p>
+          <p>
+            Cross-chain correlation uses protocol identifiers (source/destination
+            domain, message linkage), never approximate amount/time heuristics.
+            Networks that could not be queried are marked “Not assessed” and
+            never scored as “no activity.”
+          </p>
+        </CardContent>
+      </Card>
+
+      <div className="mt-6 text-xs">
+        <Link className="underline" href="/">
+          Back to analyzer
+        </Link>
       </div>
-    </div>
+    </main>
   );
 }

@@ -7,12 +7,10 @@ import { isArcAddress, ADDRESS_ERROR_MESSAGE } from "@/lib/validation";
 export function WalletInput({
   value,
   onChange,
-  onSubmit,
   disabled,
 }: {
   value: string;
   onChange: (v: string) => void;
-  onSubmit: () => void;
   disabled?: boolean;
 }) {
   const [touched, setTouched] = React.useState(false);
@@ -24,16 +22,13 @@ export function WalletInput({
         inputMode="text"
         autoComplete="off"
         spellCheck={false}
-        placeholder="0x… (Arc Testnet wallet address)"
+        placeholder="0x… (EVM wallet address)"
         aria-label="Wallet address"
         aria-invalid={showError}
         value={value}
         disabled={disabled}
         onChange={(e) => onChange(e.target.value.trim())}
         onBlur={() => setTouched(true)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" && isArcAddress(value)) onSubmit();
-        }}
         className="font-mono"
       />
       {showError && (

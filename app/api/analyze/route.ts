@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { normalizeAddress } from "@/lib/validation";
-import { collectFacts } from "@/lib/analysis/analystService";
-import { score } from "@/lib/analysis/scoring";
-import type { CircleFootprintReport } from "@/lib/types";
+import { analyzeAddress } from "@/lib/report/analyze";
+import type { FootprintReport } from "@/lib/report/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,9 +10,9 @@ export const dynamic = "force-dynamic";
  * POST /api/analyze
  * Body: { address: string }
  *
- * Validates server-side (never trusts client input), fetches only public
- * Arc Testnet sources, returns a CircleFootprintReport.
- * Always returns JSON (never an HTML crash) even when all sources are unavailable.
+ * Validates server-side (never trusts client input), indexes all officially
+ * supported EVM networks, and returns a FootprintReport. "Not assessed"
+ * networks never become "no activity". Always returns JSON.
  */
 export async function POST(request: Request) {
   let body: unknown;
@@ -22,7 +21,7 @@ export async function POST(request: Request) {
   } catch {
     return NextResponse.json(
       { error: "Invalid JSON body.", details: null as unknown as string },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
@@ -30,7 +29,7 @@ export async function POST(request: Request) {
   if (typeof address !== "string" || address.trim().length === 0) {
     return NextResponse.json(
       { error: "Missing wallet address.", details: null as unknown as string },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
@@ -39,22 +38,22 @@ export async function POST(request: Request) {
     normalized = normalizeAddress(address.trim());
   } catch {
     return NextResponse.json(
-      { error: "Invalid Arc wallet address.", details: null as unknown as string },
-      { status: 400 }
+      { error: "Invalid EVM wallet address.", details: null as unknown as string },
+      { status: 400 },
     );
   }
 
   try {
-    const facts = await collectFacts(normalized);
-    const report: CircleFootprintReport = score(facts);
+    const report: FootprintReport = await analyzeAddress(normalized);
     return NextResponse.json(report, { status: 200 });
   } catch (err) {
     return NextResponse.json(
       {
-        error: "Analysis failed. The Arc Testnet sources may be unavailable.",
+        error:
+          "Analysis failed. Some onchain sources may be temporarily unavailable.",
         detail: err instanceof Error ? err.message : "unknown",
       },
-      { status: 502 }
+      { status: 502 },
     );
   }
 }

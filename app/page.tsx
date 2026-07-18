@@ -1,57 +1,88 @@
 "use client";
 
-import * as React from "react";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { ADDRESS_ERROR_MESSAGE } from "@/lib/validation";
 import { WalletInput } from "@/components/WalletInput";
-import { AnalyzeButton } from "@/components/AnalyzeButton";
-import { isArcAddress } from "@/lib/validation";
+import { Button } from "@/components/ui/button";
 
 export default function HomePage() {
-  const [address, setAddress] = React.useState("");
-  const valid = address.trim().length > 0 && isArcAddress(address.trim());
+  const router = useRouter();
+  const [value, setValue] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!value.trim()) {
+      setError(ADDRESS_ERROR_MESSAGE);
+      return;
+    }
+    setError(null);
+    router.push(`/analyze?address=${encodeURIComponent(value.trim())}`);
+  }
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-24">
-      <div className="mb-10 text-center">
-        <h1 className="text-3xl font-semibold">Circle Ecosystem Footprint</h1>
-        <p className="mt-3 text-muted-foreground">
-          See the verifiable onchain footprint of an address across Arc and Circle infrastructure.
+    <main className="mx-auto max-w-3xl px-4 py-16">
+      <header className="mb-10">
+        <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+          Independent onchain evidence tool
         </p>
-        <p className="mt-3 text-xs text-muted-foreground">
-          Independent read-only analysis. Not eligibility, rewards, or an official Circle / Arc qualification.
+        <h1 className="mt-2 text-4xl font-bold tracking-tight">
+          Circle Ecosystem Footprint
+        </h1>
+        <p className="mt-3 text-sm text-muted-foreground">
+          Independent, read-only analysis of publicly observable activity across
+          Arc and verifiable Circle infrastructure.
         </p>
-      </div>
+      </header>
 
-      <form
-        className="flex gap-2"
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (valid) window.location.href = `/analyze?address=${encodeURIComponent(address.trim())}`;
-        }}
-      >
-        <WalletInput
-          value={address}
-          onChange={(v) => setAddress(v)}
-          onSubmit={() => {}}
-          disabled={false}
+      <section className="rounded-xl border border-border bg-card p-6">
+        <form onSubmit={submit} className="flex flex-col gap-3 sm:flex-row sm:items-end">
+          <div className="flex-1">
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">
+              EVM wallet address
+            </label>
+            <WalletInput value={value} onChange={setValue} />
+          </div>
+          <Button type="submit" className="sm:w-36">
+            Analyze
+          </Button>
+        </form>
+        {error && <p className="mt-2 text-xs text-red-400">{error}</p>}
+
+        <p className="mt-4 text-xs text-muted-foreground">
+          Supports Arc Testnet and other officially listed Circle EVM networks.
+          No data is written to any chain.
+        </p>
+      </section>
+
+      <section className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <Feature
+          title="Evidence-first"
+          body="Every score derives from verifiable onchain events matched to official Circle / Arc contract registries."
         />
-        <AnalyzeButton address={address} onClick={() => { if (valid) window.location.href = `/analyze?address=${encodeURIComponent(address.trim())}`; }} loading={false} />
-      </form>
+        <Feature
+          title="Multi-chain"
+          body="Arc Testnet plus Circle-supported EVM networks, with deterministic cross-chain CCTP / Gateway correlation."
+        />
+        <Feature
+          title="Conservative by design"
+          body="Unassessed networks are never scored as 'no activity'. Hard caps prevent overclaims from thin data."
+        />
+        <Feature
+          title="Not an eligibility tool"
+          body="We measure observable activity, not identity, intent, rewards, or compliance status."
+        />
+      </section>
+    </main>
+  );
+}
 
-      <div className="mt-8 rounded-lg border bg-muted/40 p-4 text-left text-xs text-muted-foreground">
-        <p className="mb-2 font-medium text-foreground">What this tool shows</p>
-        <ul className="list-disc space-y-1 pl-5">
-          <li>Verified USDC, EURC, and USYC activity on Arc Testnet</li>
-          <li>Verified CCTP and Gateway cross-chain interactions</li>
-          <li>Observed Arc interaction patterns and developer-primitive usage</li>
-          <li>Evidence-backed footprint categories, not speculative scores</li>
-        </ul>
-      </div>
-
-      <div className="mt-6 flex justify-center gap-6 text-xs text-muted-foreground">
-        <Link className="underline" href="/methodology">Methodology</Link>
-        <Link className="underline" href="#data-sources">Data Sources</Link>
-      </div>
+function Feature({ title, body }: { title: string; body: string }) {
+  return (
+    <div className="rounded-lg border border-border bg-card/50 p-4">
+      <h3 className="text-sm font-semibold">{title}</h3>
+      <p className="mt-1 text-xs text-muted-foreground">{body}</p>
     </div>
   );
 }

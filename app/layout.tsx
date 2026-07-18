@@ -5,9 +5,9 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
 export const metadata: Metadata = {
-  title: "ARC Readiness Checker",
+  title: "Circle Ecosystem Footprint",
   description:
-    "Community-built readiness report for wallets on the Arc ecosystem (Arc Testnet). Not affiliated with Arc Network.",
+    "Independent, read-only analysis of publicly observable activity across Arc and verifiable Circle infrastructure (CCTP, Gateway, USDC).",
 };
 
 export default function RootLayout({
